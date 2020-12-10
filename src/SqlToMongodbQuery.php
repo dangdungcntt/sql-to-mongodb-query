@@ -2,7 +2,6 @@
 
 namespace Nddcoder\SqlToMongodbQuery;
 
-use JetBrains\PhpStorm\Pure;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
 use Nddcoder\SqlToMongodbQuery\Object\Query;
@@ -89,18 +88,18 @@ class SqlToMongodbQuery
     }
 
     /**
-     * @param  Condition[]  $where
+     * @param  Condition[]  $conditions
      * @return array
      */
-    protected function parseWhereConditions(array $where): array
+    protected function parseWhereConditions(array $conditions): array
     {
         $filter = [];
 
         $nextToIndex = 0;
 
-//        dd($where);
+        for ($index = 0; $index < count($conditions); $index++) {
+            $condition = $conditions[$index];
 
-        foreach ($where as $index => $condition) {
             if ($nextToIndex > 0 && $nextToIndex > $index) {
                 continue;
             }
@@ -111,21 +110,21 @@ class SqlToMongodbQuery
                 if ($condition->expr == 'OR') {
                     $subWhere     = [];
                     $bracketsDiff = 0;
-                    for ($i = $index + 1; $i < count($where); $i++) {
+                    for ($i = $index + 1; $i < count($conditions); $i++) {
                         $nextToIndex = $i;
 
-                        if ($where[$i]->isOperator) {
-                            if ($where[$i]->expr == 'OR' && $bracketsDiff == 0) {
+                        if ($conditions[$i]->isOperator) {
+                            if ($conditions[$i]->expr == 'OR' && $bracketsDiff == 0) {
                                 break;
                             }
                         } else {
-                            $bracketsDiff += $this->getBracketsDiff($where[$i]->expr);
+                            $bracketsDiff += $this->getBracketsDiff($conditions[$i]->expr);
                         }
 
-                        $subWhere[] = $where[$i];
+                        $subWhere[] = $conditions[$i];
                     }
 
-                    if ($nextToIndex == count($where) - 1) {
+                    if ($nextToIndex == count($conditions) - 1) {
                         $nextToIndex++;
                     }
 
@@ -166,16 +165,16 @@ class SqlToMongodbQuery
                 $cloneCondition
             ];
 
-            for ($i = $index + 1; $i < count($where); $i++) {
+            for ($i = $index + 1; $i < count($conditions); $i++) {
                 $nextToIndex  = $i + 1;
-                $bracketsDiff += $this->getBracketsDiff($where[$i]->expr);
-                if (!$where[$i]->isOperator && $bracketsDiff == 0) {
-                    $clone       = clone $where[$i];
+                $bracketsDiff += $this->getBracketsDiff($conditions[$i]->expr);
+                if (!$conditions[$i]->isOperator && $bracketsDiff == 0) {
+                    $clone       = clone $conditions[$i];
                     $clone->expr = substr($clone->expr, 0, strlen($clone->expr) - 1);
                     $subWhere[]  = $clone;
                     break;
                 }
-                $subWhere[] = $where[$i];
+                $subWhere[] = $conditions[$i];
             }
 
             $subFilter = $this->parseWhereConditions($subWhere);
@@ -269,12 +268,11 @@ class SqlToMongodbQuery
         };
     }
 
-    #[Pure] protected function getBracketsDiff($string): int
+    protected function getBracketsDiff($string): int
     {
         return substr_count($string, '(') - substr_count($string, ')');
     }
 
-    #[Pure]
     protected function hasOnlyFilter(
         array $filter,
         $filterKey
