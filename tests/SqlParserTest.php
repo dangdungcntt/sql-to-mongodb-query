@@ -152,13 +152,13 @@ class SqlParserTest extends TestCase
         );
 
         $this->assertEquals(
-            ['role' => ['$in' => [1, 'sdfsdf , sdfsdf', 3]]],
-            $this->parser->parse("SELECT * FROM users WHERE role in (1, 'sdfsdf , sdfsdf', 3)")->filter
+            ['role' => ['$in' => [1, 'sdfsdf , sdfsdf', 3, true]]],
+            $this->parser->parse("SELECT * FROM users WHERE role in (1, 'sdfsdf , sdfsdf', 3, TRUE)")->filter
         );
 
         $this->assertEquals(
-            ['role' => ['$nin' => [1, 'sdfsdf , sdfsdf', 3.2]]],
-            $this->parser->parse("SELECT * FROM users WHERE role not in (1, 'sdfsdf , sdfsdf', 3.2)")->filter
+            ['role' => ['$nin' => [1, 'sdfsdf , sdfsdf', 3.2, false]]],
+            $this->parser->parse("SELECT * FROM users WHERE role not in (1, 'sdfsdf , sdfsdf', 3.2, false)")->filter
         );
     }
 

@@ -322,6 +322,10 @@ class SqlToMongodbQuery
                     settype($item, str_contains((string)$item, '.') ? 'float' : 'int');
                 }
 
+                if (in_array(strtolower($item), ['true', 'false'])) {
+                    $item = strtolower($item) === 'true';
+                }
+
                 return $this->convertInlineFunction($item, $subIdentifiers);
             },
             explode(',', $value)
