@@ -103,7 +103,7 @@ class SqlParserTest extends TestCase
     {
         $this->assertEquals(
             ['active' => true, 'banned' => false],
-            $this->parser->parse("SELECT * FROM users WHERE active = true and banned = false")->filter
+            $this->parser->parse("SELECT * FROM users WHERE active = TRUE and banned = false")->filter
         );
 
         $this->assertEquals(

@@ -265,12 +265,12 @@ class SqlToMongodbQuery
                 $value = $identifiers[0];
                 break;
             case in_array(strtolower($value), ['true', 'false']):
-                $value = $value === 'true';
+                $value = strtolower($value) === 'true';
                 break;
             case is_numeric($value):
                 settype($value, str_contains($value, '.') ? 'float' : 'int');
                 break;
-            case !in_array($operator, ['in', 'not']):
+            case $operator != 'in':
                 $value = $this->convertInlineFunction($value, $identifiers);
                 break;
             default:
@@ -295,9 +295,10 @@ class SqlToMongodbQuery
         $value = trim($value, '() ');
 
         $replaces = [];
+        $salt = time() . random_int(1000, 10000);
 
         foreach ($identifiers as $index => $identifier) {
-            $key            = "__tmp_identifier_{$index}";
+            $key            = "__tmp_identifier_{$salt}_{$index}";
             $value          = str_replace_first($identifier, $key, $value);
             $replaces[$key] = $identifier;
         }
@@ -375,8 +376,10 @@ class SqlToMongodbQuery
     {
         $replaces = [];
 
+        $salt = time() . random_int(1000, 10000);
+
         foreach ($identifiers as $index => $identifier) {
-            $key            = "__tmp_identifier_{$index}";
+            $key            = "__tmp_identifier_{$salt}_{$index}";
             $expr           = str_replace_first($identifier, $key, $expr);
             $replaces[$key] = $identifier;
         }
@@ -394,14 +397,6 @@ class SqlToMongodbQuery
                 '>=',
                 '<>',
                 '!=',
-                'like',
-                'LIKE',
-                'not in',
-                'not IN',
-                'NOT in',
-                'NOT IN',
-                'in',
-                'IN',
             ]
         );
 
