@@ -4,6 +4,7 @@ namespace Nddcoder\SqlToMongodbQuery\Tests;
 
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\Regex;
+use MongoDB\BSON\UTCDateTime;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
 
 class SqlParserTest extends TestCase
@@ -14,6 +15,24 @@ class SqlParserTest extends TestCase
     {
         parent::__construct();
         $this->parser = new SqlToMongodbQuery();
+    }
+
+    /** @test */
+    public function it_should_return_null_for_non_statement()
+    {
+        $this->assertNull($this->parser->parse('random sql query'));
+    }
+
+    /** @test */
+    public function it_should_return_null_for_non_select_statement()
+    {
+        $this->assertNull($this->parser->parse('DELETE FROM USERS where id = 1'));
+    }
+
+    /** @test */
+    public function it_should_return_null_for_select_statement_without_from()
+    {
+        $this->assertNull($this->parser->parse('SELECT * FROM where id = 1'));
     }
 
     /** @test */
@@ -83,6 +102,11 @@ class SqlParserTest extends TestCase
     public function it_should_parse_single_where()
     {
         $this->assertEquals(
+            ['active' => true, 'banned' => false],
+            $this->parser->parse("SELECT * FROM users WHERE active = true and banned = false")->filter
+        );
+
+        $this->assertEquals(
             ['name' => 'nddcoder'],
             $this->parser->parse("SELECT * FROM users WHERE name = 'nddcoder'")->filter
         );
@@ -123,13 +147,18 @@ class SqlParserTest extends TestCase
         );
 
         $this->assertEquals(
-            ['role' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3]]],
-            $this->parser->parse("SELECT * FROM users WHERE role in (ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3)")->filter
+            ['name' => ['$not' => new Regex('nddcoder', 'i')]],
+            $this->parser->parse("SELECT * FROM users WHERE name not LIKE 'nddcoder'")->filter
         );
 
         $this->assertEquals(
-            ['role' => ['$nin' => [new ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3.2]]],
-            $this->parser->parse("SELECT * FROM users WHERE role not in (ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3.2)")->filter
+            ['role' => ['$in' => [1, 'sdfsdf , sdfsdf', 3]]],
+            $this->parser->parse("SELECT * FROM users WHERE role in (1, 'sdfsdf , sdfsdf', 3)")->filter
+        );
+
+        $this->assertEquals(
+            ['role' => ['$nin' => [1, 'sdfsdf , sdfsdf', 3.2]]],
+            $this->parser->parse("SELECT * FROM users WHERE role not in (1, 'sdfsdf , sdfsdf', 3.2)")->filter
         );
     }
 
@@ -177,25 +206,172 @@ class SqlParserTest extends TestCase
         );
     }
 
-//    /** @test */
-    public function it_should_parse_where()
+    /** @test */
+    public function it_should_parse_inline_function()
     {
-//        dd($this->assertEquals(
-//            ['age' => ['$gte' => 12]],
-//            dd($this->parser->parse("SELECT * FROM users WHERE 12<=age and age>=13 and age<>25 and age!=25")->filter)
-//        ));
-//        dd($this->parser->parse("
-//            SELECT * FROM users
-//            where name='nddcoder'
-//            order by created_at
-//            desc limit 20,10")->filter);
-//
-//        dd(json_encode($this->parser->parse("
-//                    SELECT * FROM users
-//                    where _id = ObjectId('5d3937af498831003e9f6f2a') and name = 'dung' and email = 'dangdungcntt@gmail.com' and (date('2020-12-14') < created_at or age > 20) and (date('2020-12-16') < created_at or age > 22) or ip not in ('192.168.1.1', '192.168.2.2')
-//                    order by created_at
-//                    desc limit 20,10")->filter));
+        $this->assertEquals(
+            ['_id' => new ObjectId('5d3937af498831003e9f6f2a')],
+            $this->parser->parse("SELECT * FROM users WHERE _id = ObjectId('5d3937af498831003e9f6f2a')")->filter
+        );
+
+        $this->assertEquals(
+            ['_id' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a')]]],
+            $this->parser->parse("SELECT * FROM users WHERE _id in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
+        );
+
+        $this->assertEquals(
+            ['_id' => ['$nin' => [new ObjectId('5d3937af498831003e9f6f2a')]]],
+            $this->parser->parse("SELECT * FROM users WHERE _id not in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
+        );
+
+        $this->assertEquals(
+            ['created_at' => new UTCDateTime(date_create('2020-12-12'))],
+            $this->parser->parse("SELECT * FROM users WHERE created_at = date('2020-12-12')")->filter
+        );
+
+        $this->assertEquals(
+            ['created_at' => ['$gte' => new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700'))]],
+            $this->parser->parse("SELECT * FROM users WHERE created_at >= date('2020-12-12T10:00:00.000+0700')")->filter
+        );
     }
 
+    /** @test */
+    public function it_should_parse_complex_and_condition()
+    {
+        $this->assertEquals(
+            ['name' => 'dung', 'email' => 'dangdungcntt@gmail.com'],
+            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com'")->filter
+        );
 
+        $this->assertEquals(
+            ['name' => 'dung', 'email' => 'dangdungcntt@gmail.com', 'phone' => new Regex('^0983', 'i')],
+            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com' and (phone like '^0983')")->filter
+        );
+    }
+
+    /** @test */
+    public function it_should_parse_complex_or_condition()
+    {
+        $this->assertEquals(
+            ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com']]],
+            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' or email = 'dangdungcntt@gmail.com'")->filter
+        );
+
+        $this->assertEquals(
+            ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]]]],
+            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or age > 12)")->filter
+        );
+
+        $this->assertEquals(
+            ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]], ['age' => ['$lt' => 6]]]],
+            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or (age > 12 or age < 6))")->filter
+        );
+
+        $this->assertEquals(
+            ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]], ['age' => ['$lt' => 6]]]],
+            $this->parser->parse("SELECT * FROM users WHERE (name = 'dung' or email = 'dangdungcntt@gmail.com') or (age > 12 or age < 6))")->filter
+        );
+    }
+
+    /** @test */
+    public function it_should_parse_complex_and_or_condition()
+    {
+        $this->assertEquals(
+            [
+                '$or' => [
+                    ['role' => 'admin'],
+                    [
+                        'username' => new Regex('admin$', 'i'),
+                        '$or' => [
+                            ['created_at' => ['$lt' => new UTCDateTime(date_create('2020-01-01'))]],
+                            ['email' => new Regex('@nddcoder.com$', 'i')]
+                        ]
+                    ],
+                    ['ip' => ['$in' => ['10.42.0.1', '192.168.0.1']]]
+                ]
+            ],
+            $this->parser->parse("
+SELECT * FROM users
+where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-01') or email LIKE '@nddcoder.com$')) or ip in ('10.42.0.1', '192.168.0.1')")->filter
+        );
+
+        $this->assertEquals(
+            [
+                '$or' => [
+                    [
+                        '$and' => [
+                            [
+                                'id' => 1,
+                                'name' => 'dung',
+                                'email' => 'dangdungcntt@gmail.com',
+                                '$or' => [
+                                    ['created_at' => ['$lte' => new UTCDateTime(date_create('2020-12-14'))]],
+                                    ['age' => ['$gt' => 20]]
+                                ]
+                            ],
+                            [
+                                '$or' => [
+                                    ['created_at' => ['$gt' => new UTCDateTime(date_create('2020-12-16'))]],
+                                    ['age' => ['$lte' => 22]]
+                                ]
+                            ]
+                        ]
+                    ],
+                    ['ip' => ['$nin' => ['192.168.1.1', '192.168.2.2']]]
+                ]
+            ],
+            $this->parser->parse("
+SELECT * FROM users
+where id = 1 and name = 'dung' and email = 'dangdungcntt@gmail.com' and (date('2020-12-14') >= created_at or age > 20) and (date('2020-12-16') < created_at or 22 >= age) or ip not in ('192.168.1.1', '192.168.2.2')")->filter
+        );
+
+        $this->assertEquals(
+            [
+                '$and' => [
+                    [
+                        '$or' => [
+                            ['role' => 'admin'],
+                            ['username' => new Regex('admin$', 'i')]
+                        ],
+                    ],
+                    [
+                        '$or' => [
+                            ['created_at' => ['$lt' => new UTCDateTime(date_create('2020-01-01'))]],
+                            ['created_at' => ['$gte' => new UTCDateTime(date_create('2021-01-01'))]],
+                        ]
+                    ],
+                    [
+                        '$or' => [
+                            ['email' => new Regex('@nddcoder.com$', 'i')],
+                            ['email' => new Regex('^admin@', 'i')],
+                        ]
+                    ],
+                    [
+                        '$or' => [
+                            ['age' => ['$lt' => 16]],
+                            ['age' => ['$gt' => 20]],
+                        ]
+                    ],
+                    ['active' => true]
+                ]
+            ],
+            $this->parser->parse("
+SELECT * FROM users
+where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-01-01') or created_at >= date('2021-01-01'))) and ((email LIKE '@nddcoder.com$' or email like '^admin@') and (age < 16 or age > 20)) and active = true")->filter
+        );
+    }
+
+    /** @test */
+    public function it_should_parse_value_contain_special_char()
+    {
+        $this->assertEquals(
+            ['user_agent' => 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'],
+            $this->parser->parse("SELECT * FROM clicks WHERE user_agent = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => 'nddcoder (dung nguyen dang)'],
+            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder (dung nguyen dang)' = name")->filter
+        );
+    }
 }

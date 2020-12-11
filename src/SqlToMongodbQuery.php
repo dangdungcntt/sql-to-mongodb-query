@@ -142,6 +142,16 @@ class SqlToMongodbQuery
                         continue;
                     }
 
+                    if ($this->hasOnlyFilter($subFilter, '$or')) {
+                        $filter = [
+                            '$or' => [
+                                $filter,
+                                ...$subFilter['$or']
+                            ]
+                        ];
+                        continue;
+                    }
+
                     $filter = [
                         '$or' => [$filter, $subFilter]
                     ];
@@ -191,6 +201,10 @@ class SqlToMongodbQuery
 
     protected function mergeSubFilterForAndOperator(array $filter, array $subFilter): array
     {
+        if (empty($filter)) {
+            return $subFilter;
+        }
+
         if (isset($filter['$and'])) {
             if ($this->hasOnlyFilter($subFilter, '$and')) {
                 $filter['$and'] = array_merge($filter['$and'], $subFilter['$and']);
@@ -200,18 +214,10 @@ class SqlToMongodbQuery
             return $filter;
         }
 
-        if (!empty($filter) && (isset($subFilter['$and']) || isset($subFilter['$or']))) {
-            return [
-                '$and' => [
-                    $filter,
-                    $subFilter
-                ]
-            ];
-        }
-
         if (count(array_intersect_key($filter, $subFilter)) == 0) {
             return array_merge($filter, $subFilter);
         }
+
         return [
             '$and' => [
                 $filter,
@@ -225,6 +231,7 @@ class SqlToMongodbQuery
         $array = explode(' ', $this->normalizeExpr($identifiers, $expr));
 
         $reverseOperator = false;
+        $not             = false;
 
         if (str_contains($identifiers[0], ' ')) {
             $field           = trim(array_pop($array));
@@ -233,6 +240,13 @@ class SqlToMongodbQuery
         } else {
             $field    = trim(array_shift($array));
             $operator = trim(array_shift($array));
+        }
+
+        $operator = strtolower($operator);
+
+        if ($operator == 'not') {
+            $not      = true;
+            $operator = strtolower(array_shift($array));
         }
 
         $value = join(' ', $array);
@@ -246,16 +260,21 @@ class SqlToMongodbQuery
 
         $identifiers = array_values(array_filter($identifiers, fn($string) => $string != $field));
 
-        if ($this->isStringValue($value)) {
-            $value = $identifiers[0];
-        } else {
-            if (is_numeric($value)) {
+        switch (true) {
+            case $this->isStringValue($value):
+                $value = $identifiers[0];
+                break;
+            case in_array(strtolower($value), ['true', 'false']):
+                $value = $value === 'true';
+                break;
+            case is_numeric($value):
                 settype($value, str_contains($value, '.') ? 'float' : 'int');
-            } else {
-                if (!in_array($operator, ['in', 'not'])) {
-                    $value = $this->convertInlineFunction($value, $identifiers);
-                }
-            }
+                break;
+            case !in_array($operator, ['in', 'not']):
+                $value = $this->convertInlineFunction($value, $identifiers);
+                break;
+            default:
+                break;
         }
 
         return match ($operator) {
@@ -265,9 +284,8 @@ class SqlToMongodbQuery
             '>=' => [$field => [($reverseOperator ? '$lte' : '$gte') => $value]],
             '<>', '!=' => [$field => ['$ne' => $value]],
             '=' => [$field => $value],
-            'LIKE' => [$field => new Regex($value, 'i')],
-            'in' => [$field => ['$in' => $this->parseValueForInQuery($value, $identifiers)]],
-            'not' => $array[0] == 'in' ? [$field => ['$nin' => $this->parseValueForInQuery($value, $identifiers)]] : [],
+            'like' => [$field => $not ? ['$not' => new Regex($value, 'i')] : new Regex($value, 'i')],
+            'in' => [$field => [($not ? '$nin' : '$in') => $this->parseValueForInQuery($value, $identifiers)]],
             default => []
         };
     }
@@ -300,7 +318,7 @@ class SqlToMongodbQuery
                 }
 
                 if (is_numeric($item)) {
-                    settype($item, str_contains($item, '.') ? 'float' : 'int');
+                    settype($item, str_contains((string)$item, '.') ? 'float' : 'int');
                 }
 
                 return $this->convertInlineFunction($item, $subIdentifiers);
@@ -376,9 +394,14 @@ class SqlToMongodbQuery
                 '>=',
                 '<>',
                 '!=',
+                'like',
                 'LIKE',
                 'not in',
-                'in'
+                'not IN',
+                'NOT in',
+                'NOT IN',
+                'in',
+                'IN',
             ]
         );
 

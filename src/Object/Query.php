@@ -4,6 +4,7 @@ namespace Nddcoder\SqlToMongodbQuery\Object;
 
 class Query
 {
+    // @codeCoverageIgnoreStart
     public function __construct(
         public string $collection,
         public array $filter,
@@ -14,4 +15,5 @@ class Query
         public ?string $hint = null
     ) {
     }
+    // @codeCoverageIgnoreEnd
 }
