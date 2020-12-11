@@ -2,6 +2,8 @@
 
 namespace Nddcoder\SqlToMongodbQuery\Tests;
 
+use MongoDB\BSON\ObjectId;
+use MongoDB\BSON\Regex;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
 
 class SqlParserTest extends TestCase
@@ -70,7 +72,7 @@ class SqlParserTest extends TestCase
     {
         $query = $this->parser->parse("SELECT * FROM users");
 
-        $this->assertEquals(null, $query->hint);
+        $this->assertNull($query->hint);
 
         $query1 = $this->parser->parse("SELECT * FROM users use index index_name");
 
@@ -78,13 +80,115 @@ class SqlParserTest extends TestCase
     }
 
     /** @test */
+    public function it_should_parse_single_where()
+    {
+        $this->assertEquals(
+            ['name' => 'nddcoder'],
+            $this->parser->parse("SELECT * FROM users WHERE name = 'nddcoder'")->filter
+        );
+
+        $this->assertEquals(
+            ['age' => ['$gt' => 12]],
+            $this->parser->parse("SELECT * FROM users WHERE age > 12")->filter
+        );
+
+        $this->assertEquals(
+            ['age' => ['$gte' => 12]],
+            $this->parser->parse("SELECT * FROM users WHERE age >= 12")->filter
+        );
+
+        $this->assertEquals(
+            ['amount' => ['$lt' => 50.2]],
+            $this->parser->parse("SELECT * FROM users WHERE amount < 50.2")->filter
+        );
+
+        $this->assertEquals(
+            ['amount' => ['$lte' => 50.2]],
+            $this->parser->parse("SELECT * FROM users WHERE amount <= 50.2")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => ['$ne' => 'nddcoder']],
+            $this->parser->parse("SELECT * FROM users WHERE name <> 'nddcoder'")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => ['$ne' => 'nddcoder']],
+            $this->parser->parse("SELECT * FROM users WHERE name != 'nddcoder'")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => new Regex('nddcoder', 'i')],
+            $this->parser->parse("SELECT * FROM users WHERE name LIKE 'nddcoder'")->filter
+        );
+
+        $this->assertEquals(
+            ['role' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3]]],
+            $this->parser->parse("SELECT * FROM users WHERE role in (ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3)")->filter
+        );
+
+        $this->assertEquals(
+            ['role' => ['$nin' => [new ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3.2]]],
+            $this->parser->parse("SELECT * FROM users WHERE role not in (ObjectId('5d3937af498831003e9f6f2a'), 'sdfsdf , sdfsdf', 3.2)")->filter
+        );
+    }
+
+    /** @test */
+    public function it_should_parse_single_where_reverse()
+    {
+        $this->assertEquals(
+            ['name' => 'nddcoder'],
+            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder' = name")->filter
+        );
+
+        $this->assertEquals(
+            ['age' => ['$gt' => 12]],
+            $this->parser->parse("SELECT * FROM users WHERE 12 < age")->filter
+        );
+
+        $this->assertEquals(
+            ['age' => ['$gte' => 12]],
+            $this->parser->parse("SELECT * FROM users WHERE 12 <= age")->filter
+        );
+
+        $this->assertEquals(
+            ['amount' => ['$lt' => 50.2]],
+            $this->parser->parse("SELECT * FROM users WHERE 50.2 > amount")->filter
+        );
+
+        $this->assertEquals(
+            ['amount' => ['$lte' => 50.2]],
+            $this->parser->parse("SELECT * FROM users WHERE 50.2 >= amount")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => ['$ne' => 'nddcoder']],
+            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder'<>name")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => ['$ne' => 'nddcoder']],
+            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder'!=name")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => new Regex('nddcoder', 'i')],
+            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder' LIKE name")->filter
+        );
+    }
+
+//    /** @test */
     public function it_should_parse_where()
     {
-//        dd(json_encode($this->parser->parse("
+//        dd($this->assertEquals(
+//            ['age' => ['$gte' => 12]],
+//            dd($this->parser->parse("SELECT * FROM users WHERE 12<=age and age>=13 and age<>25 and age!=25")->filter)
+//        ));
+//        dd($this->parser->parse("
 //            SELECT * FROM users
-//            where name = 'dung' and email = 'email' or (name = 'hung' or email = 'hudng') or (email = 'dat')
+//            where name='nddcoder'
 //            order by created_at
-//            desc limit 20,10")->filter));
+//            desc limit 20,10")->filter);
 //
 //        dd(json_encode($this->parser->parse("
 //                    SELECT * FROM users
