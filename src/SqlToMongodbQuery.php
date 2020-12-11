@@ -5,6 +5,9 @@ namespace Nddcoder\SqlToMongodbQuery;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\Regex;
 use MongoDB\BSON\UTCDateTime;
+use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectFieldException;
+use Nddcoder\SqlToMongodbQuery\Object\Aggregate;
+use Nddcoder\SqlToMongodbQuery\Object\FindQuery;
 use Nddcoder\SqlToMongodbQuery\Object\Query;
 use PhpMyAdmin\SqlParser\Components\Condition;
 use PhpMyAdmin\SqlParser\Parser;
@@ -12,6 +15,11 @@ use PhpMyAdmin\SqlParser\Statements\SelectStatement;
 
 class SqlToMongodbQuery
 {
+    /**
+     * @param  string  $sql
+     * @return Query|null
+     * @throws InvalidSelectFieldException
+     */
     public function parse(string $sql): ?Query
     {
         $sqlParser = new Parser($sql);
@@ -28,62 +36,100 @@ class SqlToMongodbQuery
         };
     }
 
+    /**
+     * @param  SelectStatement  $statement
+     * @return Query|null
+     * @throws InvalidSelectFieldException
+     */
     protected function parseSelectStatement(SelectStatement $statement): ?Query
     {
         if (empty($statement->from[0])) {
             return null;
         }
 
-        $filter = [];
+        $filter = $this->parseWhere($statement);
 
-        if (!empty($statement->where)) {
-            $filter = $this->parseWhereConditions($statement->where);
+        [$projection, $projectionFunctions] = $this->parseSelectFields($statement);
+
+        $sort = $this->parseSort($statement);
+
+        [$skip, $limit] = $this->parseLimit($statement);
+
+        $hint = $this->parseHint($statement);
+
+        $groupBy = $this->parseGroupBy($statement);
+
+        if (empty($groupBy)) {
+            return new FindQuery(
+                collection: $statement->from[0]->table,
+                filter: $filter,
+                projection: $projection,
+                sort: $sort,
+                limit: $limit,
+                skip: $skip,
+                hint: $hint
+            );
         }
 
-        $projection = null;
-
-        if (!empty($statement->expr)) {
-            $projection = [];
-            foreach ($statement->expr as $expression) {
-                if ($expression->column) {
-                    $projection[$expression->column] = 1;
-                }
-            }
-            if (empty($projection)) {
-                $projection = null;
-            }
+        $invalidSelect = array_diff_key($projection ?? [], $groupBy);
+        if (count($invalidSelect) > 0) {
+            throw new InvalidSelectFieldException(
+                'Cannot select field(s) not in group by clause: '.join(', ', array_keys($invalidSelect))
+            );
         }
 
-        $sort = null;
+        $selectFunctions = $this->parseSelectFunctions($projectionFunctions);
 
-        if (!empty($statement->order)) {
-            $sort = [];
-            foreach ($statement->order as $orderKeyword) {
-                $sort[$orderKeyword->expr->column] = $orderKeyword->type == 'DESC' ? -1 : 1;
-            }
+        $project = [];
+        foreach (array_keys($projection ?? []) as $field) {
+            $project[$field] = '$_id.'.$field;
         }
 
-        $limit = 0;
-        $skip  = 0;
-        if (!empty($statement->limit)) {
-            $limit = $statement->limit->rowCount;
-            $skip  = $statement->limit->offset;
+        foreach ($selectFunctions as $field => $_) {
+            $project[$field] = '$'.$field;
         }
 
-        $hint = null;
-
-        if (!empty($statement->index_hints)) {
-            $hintValue = $statement->index_hints[0]->indexes[0] ?? null;
-            $hint      = $hintValue?->column ?? $hintValue;
+        if (!isset($project['_id'])) {
+            $project['_id'] = 0;
         }
 
-        return new Query(
+        $pipelines = [
+            $filter,
+            [
+                '$group' => array_merge(
+                    [
+                        '_id' => $groupBy
+                    ],
+                    $selectFunctions
+                )
+            ],
+            [
+                '$project' => $project
+            ]
+        ];
+
+        //TODO implement having
+
+        if ($sort) {
+            $pipelines[] = $sort;
+        }
+
+        if ($skip) {
+            $pipelines[] = [
+                '$skip' => $skip
+            ];
+        }
+
+        if ($limit) {
+            $pipelines[] = [
+                '$limit' => $limit
+            ];
+        }
+
+
+        return new Aggregate(
             collection: $statement->from[0]->table,
-            filter: $filter,
-            projection: $projection,
-            sort: $sort,
-            limit: $limit,
-            skip: $skip,
+            pipelines: $pipelines,
             hint: $hint
         );
     }
@@ -295,7 +341,7 @@ class SqlToMongodbQuery
         $value = trim($value, '() ');
 
         $replaces = [];
-        $salt = time() . random_int(1000, 10000);
+        $salt     = time().random_int(1000, 10000);
 
         foreach ($identifiers as $index => $identifier) {
             $key            = "__tmp_identifier_{$salt}_{$index}";
@@ -380,7 +426,7 @@ class SqlToMongodbQuery
     {
         $replaces = [];
 
-        $salt = time() . random_int(1000, 10000);
+        $salt = time().random_int(1000, 10000);
 
         foreach ($identifiers as $index => $identifier) {
             $key            = "__tmp_identifier_{$salt}_{$index}";
@@ -418,5 +464,111 @@ class SqlToMongodbQuery
         }
 
         return $string;
+    }
+
+    /**
+     * @param  \PhpMyAdmin\SqlParser\Components\Expression[]|null  $projectionFunctions
+     * @return array
+     */
+    protected function parseSelectFunctions(?array $projectionFunctions): array
+    {
+        if (empty($projectionFunctions)) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($projectionFunctions as $projectionFunction) {
+            $result[$projectionFunction->expr] = match (strtolower($projectionFunction->function)) {
+                'count' => ['$sum' => 1],
+                'sum' => [
+                    '$sum' => "\$".trim(
+                            str_replace($projectionFunction->function, '', $projectionFunction->expr),
+                            '() '
+                        )
+                ]
+            };
+        }
+
+        return $result;
+    }
+
+    protected function parseSelectFields(SelectStatement $statement): array
+    {
+        $projection          = null;
+        $projectionFunctions = null;
+        if (empty($statement->expr)) {
+            return [null, null];
+        }
+        $projection          = [];
+        $projectionFunctions = [];
+        foreach ($statement->expr as $expression) {
+            if ($expression->function) {
+                $projectionFunctions[] = $expression;
+                continue;
+            }
+            if ($expression->column) {
+                $projection[$expression->column] = 1;
+            }
+        }
+        if (empty($projection)) {
+            $projection = null;
+        }
+        if (empty($projectionFunctions)) {
+            $projectionFunctions = null;
+        }
+
+        return [$projection, $projectionFunctions];
+    }
+
+    protected function parseGroupBy(SelectStatement $statement): ?array
+    {
+        if (!$statement->group) {
+            return null;
+        }
+        $groupBy = [];
+        foreach ($statement->group as $orderKeyword) {
+            if ($orderKeyword->expr?->column) {
+                $groupBy[$orderKeyword->expr->column] = "\${$orderKeyword->expr->column}";
+            }
+        }
+        return empty($groupBy) ? null : $groupBy;
+    }
+
+    protected function parseSort(SelectStatement $statement): ?array
+    {
+        if (empty($statement->order)) {
+            return null;
+        }
+        $sort = [];
+        foreach ($statement->order as $orderKeyword) {
+            $sort[$orderKeyword->expr->column] = $orderKeyword->type == 'DESC' ? -1 : 1;
+        }
+        return $sort;
+    }
+
+    protected function parseLimit(SelectStatement $statement): array
+    {
+        if (empty($statement->limit)) {
+            return [0, 0];
+        }
+        return [$statement->limit->offset, $statement->limit->rowCount];
+    }
+
+    protected function parseHint(SelectStatement $statement): ?string
+    {
+        if (empty($statement->index_hints)) {
+            return null;
+        }
+        $hintValue = $statement->index_hints[0]->indexes[0] ?? null;
+        return $hintValue?->column ?? $hintValue;
+    }
+
+    protected function parseWhere(SelectStatement $statement): array
+    {
+        if (empty($statement->where)) {
+            return [];
+        }
+        return $this->parseWhereConditions($statement->where);
     }
 }

@@ -5,9 +5,10 @@ namespace Nddcoder\SqlToMongodbQuery\Tests;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\Regex;
 use MongoDB\BSON\UTCDateTime;
+use Nddcoder\SqlToMongodbQuery\Object\FindQuery;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
 
-class SqlParserTest extends TestCase
+class SqlParseQueryTest extends TestCase
 {
     protected SqlToMongodbQuery $parser;
 
@@ -17,28 +18,33 @@ class SqlParserTest extends TestCase
         $this->parser = new SqlToMongodbQuery();
     }
 
+    protected function parse(string $sql): ?FindQuery
+    {
+        return $this->parser->parse($sql);
+    }
+
     /** @test */
     public function it_should_return_null_for_non_statement()
     {
-        $this->assertNull($this->parser->parse('random sql query'));
+        $this->assertNull($this->parse('random sql query'));
     }
 
     /** @test */
     public function it_should_return_null_for_non_select_statement()
     {
-        $this->assertNull($this->parser->parse('DELETE FROM USERS where id = 1'));
+        $this->assertNull($this->parse('DELETE FROM USERS where id = 1'));
     }
 
     /** @test */
     public function it_should_return_null_for_select_statement_without_from()
     {
-        $this->assertNull($this->parser->parse('SELECT * FROM where id = 1'));
+        $this->assertNull($this->parse('SELECT * FROM where id = 1'));
     }
 
     /** @test */
     public function it_should_parse_collection_name()
     {
-        $query = $this->parser->parse("SELECT * FROM users");
+        $query = $this->parse("SELECT * FROM users");
 
         $this->assertEquals('users', $query->collection);
     }
@@ -46,11 +52,11 @@ class SqlParserTest extends TestCase
     /** @test */
     public function it_should_parse_select_field()
     {
-        $query = $this->parser->parse("SELECT * FROM users");
+        $query = $this->parse("SELECT * FROM users");
 
         $this->assertNull($query->projection);
 
-        $query1 = $this->parser->parse("SELECT id, name FROM users");
+        $query1 = $this->parse("SELECT id, name FROM users");
 
         $this->assertEquals(['id' => 1, 'name' => 1], $query1->projection);
     }
@@ -58,11 +64,11 @@ class SqlParserTest extends TestCase
     /** @test */
     public function it_should_parse_order()
     {
-        $query = $this->parser->parse("SELECT * FROM users order by created_at");
+        $query = $this->parse("SELECT * FROM users order by created_at");
 
         $this->assertEquals(['created_at' => 1], $query->sort);
 
-        $query1 = $this->parser->parse("SELECT * FROM users order by created_at desc");
+        $query1 = $this->parse("SELECT * FROM users order by created_at desc");
 
         $this->assertEquals(['created_at' => -1], $query1->sort);
     }
@@ -70,17 +76,17 @@ class SqlParserTest extends TestCase
     /** @test */
     public function it_should_parse_limit()
     {
-        $query = $this->parser->parse("SELECT * FROM users");
+        $query = $this->parse("SELECT * FROM users");
 
         $this->assertEquals(0, $query->limit);
         $this->assertEquals(0, $query->skip);
 
-        $query1 = $this->parser->parse("SELECT * FROM users limit 10");
+        $query1 = $this->parse("SELECT * FROM users limit 10");
 
         $this->assertEquals(10, $query1->limit);
         $this->assertEquals(0, $query1->skip);
 
-        $query2 = $this->parser->parse("SELECT * FROM users limit 20, 10");
+        $query2 = $this->parse("SELECT * FROM users limit 20, 10");
 
         $this->assertEquals(10, $query2->limit);
         $this->assertEquals(20, $query2->skip);
@@ -89,11 +95,11 @@ class SqlParserTest extends TestCase
     /** @test */
     public function it_should_parse_hint()
     {
-        $query = $this->parser->parse("SELECT * FROM users");
+        $query = $this->parse("SELECT * FROM users");
 
         $this->assertNull($query->hint);
 
-        $query1 = $this->parser->parse("SELECT * FROM users use index index_name");
+        $query1 = $this->parse("SELECT * FROM users use index index_name");
 
         $this->assertEquals('index_name', $query1->hint);
     }
@@ -103,62 +109,62 @@ class SqlParserTest extends TestCase
     {
         $this->assertEquals(
             ['active' => true, 'banned' => false],
-            $this->parser->parse("SELECT * FROM users WHERE active = TRUE and banned = false")->filter
+            $this->parse("SELECT * FROM users WHERE active = TRUE and banned = false")->filter
         );
 
         $this->assertEquals(
             ['name' => 'nddcoder'],
-            $this->parser->parse("SELECT * FROM users WHERE name = 'nddcoder'")->filter
+            $this->parse("SELECT * FROM users WHERE name = 'nddcoder'")->filter
         );
 
         $this->assertEquals(
             ['age' => ['$gt' => 12]],
-            $this->parser->parse("SELECT * FROM users WHERE age > 12")->filter
+            $this->parse("SELECT * FROM users WHERE age > 12")->filter
         );
 
         $this->assertEquals(
             ['age' => ['$gte' => 12]],
-            $this->parser->parse("SELECT * FROM users WHERE age >= 12")->filter
+            $this->parse("SELECT * FROM users WHERE age >= 12")->filter
         );
 
         $this->assertEquals(
             ['amount' => ['$lt' => 50.2]],
-            $this->parser->parse("SELECT * FROM users WHERE amount < 50.2")->filter
+            $this->parse("SELECT * FROM users WHERE amount < 50.2")->filter
         );
 
         $this->assertEquals(
             ['amount' => ['$lte' => 50.2]],
-            $this->parser->parse("SELECT * FROM users WHERE amount <= 50.2")->filter
+            $this->parse("SELECT * FROM users WHERE amount <= 50.2")->filter
         );
 
         $this->assertEquals(
             ['name' => ['$ne' => 'nddcoder']],
-            $this->parser->parse("SELECT * FROM users WHERE name <> 'nddcoder'")->filter
+            $this->parse("SELECT * FROM users WHERE name <> 'nddcoder'")->filter
         );
 
         $this->assertEquals(
             ['name' => ['$ne' => 'nddcoder']],
-            $this->parser->parse("SELECT * FROM users WHERE name != 'nddcoder'")->filter
+            $this->parse("SELECT * FROM users WHERE name != 'nddcoder'")->filter
         );
 
         $this->assertEquals(
             ['name' => new Regex('nddcoder', 'i')],
-            $this->parser->parse("SELECT * FROM users WHERE name LIKE 'nddcoder'")->filter
+            $this->parse("SELECT * FROM users WHERE name LIKE 'nddcoder'")->filter
         );
 
         $this->assertEquals(
             ['name' => ['$not' => new Regex('nddcoder', 'i')]],
-            $this->parser->parse("SELECT * FROM users WHERE name not LIKE 'nddcoder'")->filter
+            $this->parse("SELECT * FROM users WHERE name not LIKE 'nddcoder'")->filter
         );
 
         $this->assertEquals(
             ['role' => ['$in' => [1, 'sdfsdf , sdfsdf', 3, true]]],
-            $this->parser->parse("SELECT * FROM users WHERE role in (1, 'sdfsdf , sdfsdf', 3, TRUE)")->filter
+            $this->parse("SELECT * FROM users WHERE role in (1, 'sdfsdf , sdfsdf', 3, TRUE)")->filter
         );
 
         $this->assertEquals(
             ['role' => ['$nin' => [1, 'sdfsdf , sdfsdf', 3.2, false]]],
-            $this->parser->parse("SELECT * FROM users WHERE role not in (1, 'sdfsdf , sdfsdf', 3.2, false)")->filter
+            $this->parse("SELECT * FROM users WHERE role not in (1, 'sdfsdf , sdfsdf', 3.2, false)")->filter
         );
     }
 
@@ -167,42 +173,42 @@ class SqlParserTest extends TestCase
     {
         $this->assertEquals(
             ['name' => 'nddcoder'],
-            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder' = name")->filter
+            $this->parse("SELECT * FROM users WHERE 'nddcoder' = name")->filter
         );
 
         $this->assertEquals(
             ['age' => ['$gt' => 12]],
-            $this->parser->parse("SELECT * FROM users WHERE 12 < age")->filter
+            $this->parse("SELECT * FROM users WHERE 12 < age")->filter
         );
 
         $this->assertEquals(
             ['age' => ['$gte' => 12]],
-            $this->parser->parse("SELECT * FROM users WHERE 12 <= age")->filter
+            $this->parse("SELECT * FROM users WHERE 12 <= age")->filter
         );
 
         $this->assertEquals(
             ['amount' => ['$lt' => 50.2]],
-            $this->parser->parse("SELECT * FROM users WHERE 50.2 > amount")->filter
+            $this->parse("SELECT * FROM users WHERE 50.2 > amount")->filter
         );
 
         $this->assertEquals(
             ['amount' => ['$lte' => 50.2]],
-            $this->parser->parse("SELECT * FROM users WHERE 50.2 >= amount")->filter
+            $this->parse("SELECT * FROM users WHERE 50.2 >= amount")->filter
         );
 
         $this->assertEquals(
             ['name' => ['$ne' => 'nddcoder']],
-            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder'<>name")->filter
+            $this->parse("SELECT * FROM users WHERE 'nddcoder'<>name")->filter
         );
 
         $this->assertEquals(
             ['name' => ['$ne' => 'nddcoder']],
-            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder'!=name")->filter
+            $this->parse("SELECT * FROM users WHERE 'nddcoder'!=name")->filter
         );
 
         $this->assertEquals(
             ['name' => new Regex('nddcoder', 'i')],
-            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder' LIKE name")->filter
+            $this->parse("SELECT * FROM users WHERE 'nddcoder' LIKE name")->filter
         );
     }
 
@@ -211,27 +217,27 @@ class SqlParserTest extends TestCase
     {
         $this->assertEquals(
             ['_id' => new ObjectId('5d3937af498831003e9f6f2a')],
-            $this->parser->parse("SELECT * FROM users WHERE _id = ObjectId('5d3937af498831003e9f6f2a')")->filter
+            $this->parse("SELECT * FROM users WHERE _id = ObjectId('5d3937af498831003e9f6f2a')")->filter
         );
 
         $this->assertEquals(
             ['_id' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a')]]],
-            $this->parser->parse("SELECT * FROM users WHERE _id in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
+            $this->parse("SELECT * FROM users WHERE _id in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
         );
 
         $this->assertEquals(
             ['_id' => ['$nin' => [new ObjectId('5d3937af498831003e9f6f2a')]]],
-            $this->parser->parse("SELECT * FROM users WHERE _id not in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
+            $this->parse("SELECT * FROM users WHERE _id not in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
         );
 
         $this->assertEquals(
             ['created_at' => new UTCDateTime(date_create('2020-12-12'))],
-            $this->parser->parse("SELECT * FROM users WHERE created_at = date('2020-12-12')")->filter
+            $this->parse("SELECT * FROM users WHERE created_at = date('2020-12-12')")->filter
         );
 
         $this->assertEquals(
             ['created_at' => ['$gte' => new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700'))]],
-            $this->parser->parse("SELECT * FROM users WHERE created_at >= date('2020-12-12T10:00:00.000+0700')")->filter
+            $this->parse("SELECT * FROM users WHERE created_at >= date('2020-12-12T10:00:00.000+0700')")->filter
         );
     }
 
@@ -240,12 +246,12 @@ class SqlParserTest extends TestCase
     {
         $this->assertEquals(
             ['name' => 'dung', 'email' => 'dangdungcntt@gmail.com'],
-            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com'")->filter
+            $this->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com'")->filter
         );
 
         $this->assertEquals(
             ['name' => 'dung', 'email' => 'dangdungcntt@gmail.com', 'phone' => new Regex('^0983', 'i')],
-            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com' and (phone like '^0983')")->filter
+            $this->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com' and (phone like '^0983')")->filter
         );
     }
 
@@ -254,22 +260,22 @@ class SqlParserTest extends TestCase
     {
         $this->assertEquals(
             ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com']]],
-            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' or email = 'dangdungcntt@gmail.com'")->filter
+            $this->parse("SELECT * FROM users WHERE name = 'dung' or email = 'dangdungcntt@gmail.com'")->filter
         );
 
         $this->assertEquals(
             ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]]]],
-            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or age > 12)")->filter
+            $this->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or age > 12)")->filter
         );
 
         $this->assertEquals(
             ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]], ['age' => ['$lt' => 6]]]],
-            $this->parser->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or (age > 12 or age < 6))")->filter
+            $this->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or (age > 12 or age < 6))")->filter
         );
 
         $this->assertEquals(
             ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]], ['age' => ['$lt' => 6]]]],
-            $this->parser->parse("SELECT * FROM users WHERE (name = 'dung' or email = 'dangdungcntt@gmail.com') or (age > 12 or age < 6))")->filter
+            $this->parse("SELECT * FROM users WHERE (name = 'dung' or email = 'dangdungcntt@gmail.com') or (age > 12 or age < 6))")->filter
         );
     }
 
@@ -290,7 +296,7 @@ class SqlParserTest extends TestCase
                     ['ip' => ['$in' => ['10.42.0.1', '192.168.0.1']]]
                 ]
             ],
-            $this->parser->parse("
+            $this->parse("
 SELECT * FROM users
 where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-01') or email LIKE '@nddcoder.com$')) or ip in ('10.42.0.1', '192.168.0.1')")->filter
         );
@@ -320,7 +326,7 @@ where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-
                     ['ip' => ['$nin' => ['192.168.1.1', '192.168.2.2']]]
                 ]
             ],
-            $this->parser->parse("
+            $this->parse("
 SELECT * FROM users
 where id = 1 and name = 'dung' and email = 'dangdungcntt@gmail.com' and (date('2020-12-14') >= created_at or age > 20) and (date('2020-12-16') < created_at or 22 >= age) or ip not in ('192.168.1.1', '192.168.2.2')")->filter
         );
@@ -355,7 +361,7 @@ where id = 1 and name = 'dung' and email = 'dangdungcntt@gmail.com' and (date('2
                     ['active' => true]
                 ]
             ],
-            $this->parser->parse("
+            $this->parse("
 SELECT * FROM users
 where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-01-01') or created_at >= date('2021-01-01'))) and ((email LIKE '@nddcoder.com$' or email like '^admin@') and (age < 16 or age > 20)) and active = true")->filter
         );
@@ -366,12 +372,12 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
     {
         $this->assertEquals(
             ['user_agent' => 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'],
-            $this->parser->parse("SELECT * FROM clicks WHERE user_agent = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'")->filter
+            $this->parse("SELECT * FROM clicks WHERE user_agent = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'")->filter
         );
 
         $this->assertEquals(
             ['name' => 'nddcoder (dung nguyen dang)'],
-            $this->parser->parse("SELECT * FROM users WHERE 'nddcoder (dung nguyen dang)' = name")->filter
+            $this->parse("SELECT * FROM users WHERE 'nddcoder (dung nguyen dang)' = name")->filter
         );
     }
 }
