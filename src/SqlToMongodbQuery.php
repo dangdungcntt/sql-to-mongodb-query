@@ -520,8 +520,6 @@ class SqlToMongodbQuery
      */
     protected function parseSelectFields(SelectStatement $statement): array
     {
-        $projection          = null;
-        $projectionFunctions = null;
         if (empty($statement->expr)) {
             throw new InvalidSelectStatementException('Invalid SELECT statement');
         }
