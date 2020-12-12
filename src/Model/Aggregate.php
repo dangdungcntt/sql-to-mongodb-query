@@ -1,6 +1,6 @@
 <?php
 
-namespace Nddcoder\SqlToMongodbQuery\Object;
+namespace Nddcoder\SqlToMongodbQuery\Model;
 
 class Aggregate extends Query
 {

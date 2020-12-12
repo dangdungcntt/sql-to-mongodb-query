@@ -6,9 +6,12 @@ use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\Regex;
 use MongoDB\BSON\UTCDateTime;
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectFieldException;
-use Nddcoder\SqlToMongodbQuery\Object\Aggregate;
-use Nddcoder\SqlToMongodbQuery\Object\FindQuery;
-use Nddcoder\SqlToMongodbQuery\Object\Query;
+use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectStatementException;
+use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSqlQueryException;
+use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportStatementException;
+use Nddcoder\SqlToMongodbQuery\Model\Aggregate;
+use Nddcoder\SqlToMongodbQuery\Model\FindQuery;
+use Nddcoder\SqlToMongodbQuery\Model\Query;
 use PhpMyAdmin\SqlParser\Components\Condition;
 use PhpMyAdmin\SqlParser\Parser;
 use PhpMyAdmin\SqlParser\Statements\SelectStatement;
@@ -19,20 +22,25 @@ class SqlToMongodbQuery
      * @param  string  $sql
      * @return Query|null
      * @throws InvalidSelectFieldException
+     * @throws InvalidSelectStatementException
+     * @throws NotSupportStatementException
+     * @throws InvalidSqlQueryException
      */
     public function parse(string $sql): ?Query
     {
         $sqlParser = new Parser($sql);
 
         if (!isset($sqlParser->statements[0])) {
-            return null;
+            throw new InvalidSqlQueryException(sprintf('Invalid sql query for string: %s', $sql));
         }
 
         $statement = $sqlParser->statements[0];
 
         return match (true) {
             $statement instanceof SelectStatement => $this->parseSelectStatement($statement),
-            default => null
+            default => throw new NotSupportStatementException(
+                sprintf('Not support statement type %s', $statement::class)
+            )
         };
     }
 
@@ -40,6 +48,7 @@ class SqlToMongodbQuery
      * @param  SelectStatement  $statement
      * @return Query|null
      * @throws InvalidSelectFieldException
+     * @throws InvalidSelectStatementException
      */
     protected function parseSelectStatement(SelectStatement $statement): ?Query
     {
@@ -57,9 +66,7 @@ class SqlToMongodbQuery
 
         $hint = $this->parseHint($statement);
 
-        $groupBy = $this->parseGroupBy($statement);
-
-        if (empty($groupBy)) {
+        if (empty($statement->group)) {
             return new FindQuery(
                 collection: $statement->from[0]->table,
                 filter: $filter,
@@ -70,6 +77,8 @@ class SqlToMongodbQuery
                 hint: $hint
             );
         }
+
+        $groupBy = $this->parseGroupBy($statement);
 
         $invalidSelect = array_diff_key($projection ?? [], $groupBy);
         if (count($invalidSelect) > 0) {
@@ -94,7 +103,9 @@ class SqlToMongodbQuery
         }
 
         $pipelines = [
-            $filter,
+            [
+                '$match' => $filter
+            ],
             [
                 '$group' => array_merge(
                     [
@@ -108,24 +119,33 @@ class SqlToMongodbQuery
             ]
         ];
 
-        //TODO implement having
+        if (!empty($having = $this->parseHaving($statement))) {
+            $havingStep  = [
+                '$match' => $having
+            ];
+            $pipelines[] = $havingStep;
+        }
 
         if ($sort) {
-            $pipelines[] = $sort;
+            $sortStep    = [
+                '$sort' => $sort
+            ];
+            $pipelines[] = $sortStep;
         }
 
         if ($skip) {
-            $pipelines[] = [
+            $skipStep    = [
                 '$skip' => $skip
             ];
+            $pipelines[] = $skipStep;
         }
 
         if ($limit) {
-            $pipelines[] = [
+            $limitStep   = [
                 '$limit' => $limit
             ];
+            $pipelines[] = $limitStep;
         }
-
 
         return new Aggregate(
             collection: $statement->from[0]->table,
@@ -493,12 +513,17 @@ class SqlToMongodbQuery
         return $result;
     }
 
+    /**
+     * @param  SelectStatement  $statement
+     * @return array
+     * @throws InvalidSelectStatementException
+     */
     protected function parseSelectFields(SelectStatement $statement): array
     {
         $projection          = null;
         $projectionFunctions = null;
         if (empty($statement->expr)) {
-            return [null, null];
+            throw new InvalidSelectStatementException('Invalid SELECT statement');
         }
         $projection          = [];
         $projectionFunctions = [];
@@ -523,9 +548,6 @@ class SqlToMongodbQuery
 
     protected function parseGroupBy(SelectStatement $statement): ?array
     {
-        if (!$statement->group) {
-            return null;
-        }
         $groupBy = [];
         foreach ($statement->group as $orderKeyword) {
             if ($orderKeyword->expr?->column) {
@@ -542,7 +564,7 @@ class SqlToMongodbQuery
         }
         $sort = [];
         foreach ($statement->order as $orderKeyword) {
-            $sort[$orderKeyword->expr->column] = $orderKeyword->type == 'DESC' ? -1 : 1;
+            $sort[$orderKeyword->expr->column ?? $orderKeyword->expr->expr] = $orderKeyword->type == 'DESC' ? -1 : 1;
         }
         return $sort;
     }
@@ -570,5 +592,13 @@ class SqlToMongodbQuery
             return [];
         }
         return $this->parseWhereConditions($statement->where);
+    }
+
+    protected function parseHaving(SelectStatement $statement): array
+    {
+        if (empty($statement->having)) {
+            return [];
+        }
+        return $this->parseWhereConditions($statement->having);
     }
 }

@@ -5,7 +5,10 @@ namespace Nddcoder\SqlToMongodbQuery\Tests;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\Regex;
 use MongoDB\BSON\UTCDateTime;
-use Nddcoder\SqlToMongodbQuery\Object\FindQuery;
+use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectStatementException;
+use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSqlQueryException;
+use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportStatementException;
+use Nddcoder\SqlToMongodbQuery\Model\FindQuery;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
 
 class SqlParseQueryTest extends TestCase
@@ -24,14 +27,23 @@ class SqlParseQueryTest extends TestCase
     }
 
     /** @test */
-    public function it_should_return_null_for_non_statement()
+    public function it_should_throw_exception_for_non_statement()
     {
+        $this->expectException(InvalidSqlQueryException::class);
         $this->assertNull($this->parse('random sql query'));
     }
 
     /** @test */
-    public function it_should_return_null_for_non_select_statement()
+    public function it_should_throw_exception_when_invalid_select_statement()
     {
+        $this->expectException(InvalidSelectStatementException::class);
+        $this->parse('SELECT FROM users');
+    }
+
+    /** @test */
+    public function it_should_throw_exception_for_not_support_statement()
+    {
+        $this->expectException(NotSupportStatementException::class);
         $this->assertNull($this->parse('DELETE FROM USERS where id = 1'));
     }
 
