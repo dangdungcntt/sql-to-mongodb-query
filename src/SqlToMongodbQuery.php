@@ -66,7 +66,10 @@ class SqlToMongodbQuery
 
         $hint = $this->parseHint($statement);
 
-        if (empty($statement->group)) {
+        if (empty($statement->group) && empty($projectionFunctions)) {
+            if (!empty($statement->having)) {
+                throw new InvalidSelectStatementException('Cannot use having without group by');
+            }
             return new FindQuery(
                 collection: $statement->from[0]->table,
                 filter: $filter,
@@ -80,7 +83,7 @@ class SqlToMongodbQuery
 
         $groupBy = $this->parseGroupBy($statement);
 
-        $invalidSelect = array_diff_key($projection ?? [], $groupBy);
+        $invalidSelect = array_diff_key($projection ?? [], $groupBy ?? []);
         if (count($invalidSelect) > 0) {
             throw new InvalidSelectFieldException(
                 'Cannot select field(s) not in group by clause: '.join(', ', array_keys($invalidSelect))
@@ -503,7 +506,7 @@ class SqlToMongodbQuery
                 'count' => ['$sum' => 1],
                 'sum' => [
                     '$sum' => "\$".trim(
-                            str_replace($projectionFunction->function, '', $projectionFunction->expr),
+                            str_replace_first($projectionFunction->function, '', $projectionFunction->expr),
                             '() '
                         )
                 ]
@@ -547,7 +550,7 @@ class SqlToMongodbQuery
     protected function parseGroupBy(SelectStatement $statement): ?array
     {
         $groupBy = [];
-        foreach ($statement->group as $orderKeyword) {
+        foreach ($statement->group ?? [] as $orderKeyword) {
             if ($orderKeyword->expr?->column) {
                 $groupBy[$orderKeyword->expr->column] = "\${$orderKeyword->expr->column}";
             }

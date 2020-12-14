@@ -41,6 +41,13 @@ class SqlParseQueryTest extends TestCase
     }
 
     /** @test */
+    public function it_should_throw_exception_when_use_having_without_group_by()
+    {
+        $this->expectException(InvalidSelectStatementException::class);
+        $this->parse('SELECT * FROM users having user_id = 1');
+    }
+
+    /** @test */
     public function it_should_throw_exception_for_not_support_statement()
     {
         $this->expectException(NotSupportStatementException::class);
