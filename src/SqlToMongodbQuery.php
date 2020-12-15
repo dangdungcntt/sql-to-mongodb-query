@@ -84,7 +84,7 @@ class SqlToMongodbQuery
         $groupBy = $this->parseGroupBy($statement);
 
         $invalidSelect = array_diff_key($projection ?? [], $groupBy ?? []);
-        if (count($invalidSelect) > 0) {
+        if (count($invalidSelect) > 0 && !(count($invalidSelect) == 1 && isset($invalidSelect['_id']))) {
             throw new InvalidSelectFieldException(
                 'Cannot select field(s) not in group by clause: '.join(', ', array_keys($invalidSelect))
             );
@@ -101,7 +101,7 @@ class SqlToMongodbQuery
             $project[$field] = '$'.$field;
         }
 
-        if (!isset($project['_id'])) {
+        if (!isset($project['_id']) && !empty($project)) {
             $project['_id'] = 0;
         }
 
