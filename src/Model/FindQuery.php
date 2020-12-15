@@ -17,4 +17,14 @@ class FindQuery extends Query
         parent::__construct($collection, $hint);
     }
     // @codeCoverageIgnoreEnd
+    public function getOptions(): array
+    {
+        return [
+            'skip'       => $this->skip ?: null,
+            'limit'      => $this->limit ?: null,
+            'projection' => $this->projection,
+            'sort'       => $this->sort,
+            'hint'       => $this->hint
+        ];
+    }
 }

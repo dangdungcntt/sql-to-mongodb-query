@@ -2,7 +2,7 @@
 
 namespace Nddcoder\SqlToMongodbQuery\Exceptions;
 
-class InvalidSelectStatementException extends \Exception
+class InvalidSelectStatementException extends SqlParseException
 {
 
 }

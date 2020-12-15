@@ -2,7 +2,7 @@
 
 namespace Nddcoder\SqlToMongodbQuery\Exceptions;
 
-class NotSupportStatementException extends \Exception
+class NotSupportStatementException extends SqlParseException
 {
 
 }

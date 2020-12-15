@@ -11,4 +11,6 @@ abstract class Query
     ) {
     }
     // @codeCoverageIgnoreEnd
+
+    abstract public function getOptions(): array;
 }

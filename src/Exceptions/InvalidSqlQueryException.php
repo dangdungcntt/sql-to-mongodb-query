@@ -2,7 +2,7 @@
 
 namespace Nddcoder\SqlToMongodbQuery\Exceptions;
 
-class InvalidSqlQueryException extends \Exception
+class InvalidSqlQueryException extends SqlParseException
 {
 
 }

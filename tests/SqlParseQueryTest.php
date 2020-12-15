@@ -27,6 +27,28 @@ class SqlParseQueryTest extends TestCase
     }
 
     /** @test */
+    public function it_should_return_options()
+    {
+        $this->assertEquals(
+            [
+                'skip' => null,
+                'limit' => 20,
+                'hint' => 'index_name',
+                'projection' => [
+                    'id' => 1,
+                    'name' => 1,
+                ],
+                'sort' => [
+                    'created_at' => -1
+                ]
+            ],
+            $this->parse(
+                'SELECT id, name FROM users use index index_name where id = 1 order by created_at desc limit 20'
+            )->getOptions()
+        );
+    }
+
+    /** @test */
     public function it_should_throw_exception_for_non_statement()
     {
         $this->expectException(InvalidSqlQueryException::class);

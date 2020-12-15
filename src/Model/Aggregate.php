@@ -12,5 +12,12 @@ class Aggregate extends Query
     ) {
         parent::__construct($collection, $hint);
     }
+
     // @codeCoverageIgnoreEnd
+    public function getOptions(): array
+    {
+        return [
+            'hint' => $this->hint
+        ];
+    }
 }

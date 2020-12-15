@@ -22,6 +22,21 @@ class SqlParseAggregateTest extends TestCase
     }
 
     /** @test */
+    public function it_should_return_options()
+    {
+        $this->assertEquals(
+            [
+                'hint' => 'index_name'
+            ],
+            $this->parse(
+                'SELECT count(*), sum(time)
+            FROM logs
+            use index index_name'
+            )->getOptions()
+        );
+    }
+
+    /** @test */
     public function it_should_parse_group_by()
     {
         $aggregate = $this->parse(
