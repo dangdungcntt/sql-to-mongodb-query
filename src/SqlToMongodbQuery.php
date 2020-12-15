@@ -107,7 +107,7 @@ class SqlToMongodbQuery
 
         $pipelines = [
             [
-                '$match' => $filter
+                '$match' => empty($filter) ? (object) $filter : $filter
             ],
             [
                 '$group' => array_merge(
