@@ -419,7 +419,7 @@ class SqlToMongodbQuery
 
         return match ($identifiers[0]) {
             'date' => new UTCDateTime(date_create($identifiers[1])),
-            'ObjectId' => new ObjectId($identifiers[1]),
+            'ObjectId', 'Id' => new ObjectId($identifiers[1]),
             default => $value
         };
     }

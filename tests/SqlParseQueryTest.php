@@ -263,7 +263,7 @@ class SqlParseQueryTest extends TestCase
 
         $this->assertEquals(
             ['_id' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a')]]],
-            $this->parse("SELECT * FROM users WHERE _id in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
+            $this->parse("SELECT * FROM users WHERE _id in (Id('5d3937af498831003e9f6f2a'))")->filter
         );
 
         $this->assertEquals(
