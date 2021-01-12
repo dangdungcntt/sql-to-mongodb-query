@@ -533,13 +533,16 @@ class SqlToMongodbQuery
                 $projectionFunctions[] = $expression;
                 continue;
             }
-            if ($expression->column) {
-                $projection[$expression->column] = 1;
+            $field = ($expression->column ?? $expression->expr);
+            if ($field && $field != '*') {
+                $projection[$field] = 1;
             }
         }
+
         if (empty($projection)) {
             $projection = null;
         }
+
         if (empty($projectionFunctions)) {
             $projectionFunctions = null;
         }
@@ -551,8 +554,8 @@ class SqlToMongodbQuery
     {
         $groupBy = [];
         foreach ($statement->group ?? [] as $orderKeyword) {
-            if ($orderKeyword->expr?->column) {
-                $groupBy[$orderKeyword->expr->column] = "\${$orderKeyword->expr->column}";
+            if ($field = ($orderKeyword->expr?->column ?? $orderKeyword->expr?->expr)) {
+                $groupBy[$field] = "\${$field}";
             }
         }
         return empty($groupBy) ? null : $groupBy;
