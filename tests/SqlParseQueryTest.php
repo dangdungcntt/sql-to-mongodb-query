@@ -283,6 +283,15 @@ class SqlParseQueryTest extends TestCase
     }
 
     /** @test */
+    public function it_should_parse_multi_inline_function_inside_in_condition()
+    {
+        $this->assertEquals(
+            ['_id' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a'), new ObjectId('5d3937af498831003e9f6f2b'), new UTCDateTime(date_create('2020-12-12'))]]],
+            $this->parse("SELECT * FROM users WHERE _id in (Id('5d3937af498831003e9f6f2a'), ObjectId('5d3937af498831003e9f6f2b'), date('2020-12-12'))")->filter
+        );
+    }
+
+    /** @test */
     public function it_should_parse_complex_and_condition()
     {
         $this->assertEquals(
