@@ -409,7 +409,7 @@ class SqlToMongodbQuery
                 }
 
                 if (is_numeric($item)) {
-                    settype($item, str_contains((string) $item, '.') ? 'float' : 'int');
+                    settype($item, str_contains($item, '.') ? 'float' : 'int');
                 }
 
                 if (in_array(strtolower($item), ['true', 'false'])) {
