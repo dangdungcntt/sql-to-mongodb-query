@@ -19,6 +19,8 @@ use PhpMyAdmin\SqlParser\Statements\SelectStatement;
 
 class SqlToMongodbQuery
 {
+    const SPECIAL_DOT_CHAR = '__';
+
     /**
      * @param  string  $sql
      * @return Query|null
@@ -84,7 +86,8 @@ class SqlToMongodbQuery
 
         $groupBy = $this->parseGroupBy($statement);
 
-        $invalidSelect = array_diff_key($projection ?? [], $groupBy ?? []);
+        $invalidSelect = $this->validateSelect($projection, $groupBy);
+
         if (count($invalidSelect) > 0 && !(count($invalidSelect) == 1 && isset($invalidSelect['_id']))) {
             throw new InvalidSelectFieldException(
                 'Cannot select field(s) not in group by clause: '.join(', ', array_keys($invalidSelect))
@@ -95,7 +98,7 @@ class SqlToMongodbQuery
 
         $project = [];
         foreach (array_keys($projection ?? []) as $field) {
-            $project[$field] = '$_id.'.$field;
+            $project[$field] = '$_id.'.strtr($field, ['.' => self::SPECIAL_DOT_CHAR]);
         }
 
         foreach ($selectFunctions as $field => $_) {
@@ -542,13 +545,7 @@ class SqlToMongodbQuery
         if (empty($expression)) {
             return null;
         }
-
-        $field = $expression->column ?? $expression->expr;
-        if ($expression->table && $expression->column) {
-            return $expression->table.'.'.$field;
-        }
-
-        return $field;
+        return $expression->expr;
     }
 
     /**
@@ -591,7 +588,7 @@ class SqlToMongodbQuery
         foreach ($statement->group ?? [] as $orderKeyword) {
             $field = $this->getFieldFromExpression($orderKeyword->expr);
             if ($field) {
-                $groupBy[$field] = "\${$field}";
+                $groupBy[strtr($field, ['.' => self::SPECIAL_DOT_CHAR])] = "\${$field}";
             }
         }
         return empty($groupBy) ? null : $groupBy;
@@ -640,5 +637,20 @@ class SqlToMongodbQuery
             return [];
         }
         return $this->parseWhereConditions($statement->having);
+    }
+
+    protected function validateSelect(mixed $projection, ?array $groupBy)
+    {
+        $invalidSelect = [];
+        foreach ($projection ?? [] as $field => $_) {
+            if (str_contains($field, '.')) {
+                $field = strtr($field, ['.' => self::SPECIAL_DOT_CHAR]);
+            }
+            if (!array_key_exists($field, $groupBy)) {
+                $invalidSelect[$field] = 1;
+            }
+        }
+
+        return $invalidSelect;
     }
 }

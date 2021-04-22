@@ -198,12 +198,12 @@ class SqlParseAggregateTest extends TestCase
     /** @test */
     public function it_should_group_by_nested()
     {
-        $aggregate = $this->parse("SELECT device_info.device_type FROM clicks WHERE device_info.device_type != NULL group by device_info.device_type");
+        $aggregate = $this->parse("SELECT abc.device.device_info.device_type FROM clicks WHERE abc.device.device_info.device_type != NULL group by abc.device.device_info.device_type");
         $this->assertCount(3, $aggregate->pipelines);
         $this->assertEquals(
             [
                 '$match' => [
-                    'device_info.device_type' => [
+                    'abc.device.device_info.device_type' => [
                         '$ne' => null
                     ]
                 ]
@@ -214,7 +214,7 @@ class SqlParseAggregateTest extends TestCase
             [
                 '$group' => [
                     '_id' => [
-                        "device_info.device_type" => '$device_info.device_type'
+                        'abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR .'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type' => '$abc.device.device_info.device_type'
                     ]
                 ]
             ],
@@ -223,7 +223,7 @@ class SqlParseAggregateTest extends TestCase
         $this->assertEquals(
             [
                 '$project' => [
-                    'device_info.device_type' => '$_id.device_info.device_type',
+                    'abc.device.device_info.device_type' => '$_id.abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR .'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type',
                     '_id'                     => 0
                 ]
             ],
