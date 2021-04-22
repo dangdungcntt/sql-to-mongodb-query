@@ -432,6 +432,20 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
     }
 
     /** @test */
+    public function it_should_parse_value_contain_empty_string()
+    {
+        $this->assertEquals(
+            ['name' => ['$ne' => ''], 'address' => ''],
+            $this->parse("SELECT * FROM users WHERE name != '' and address = ''")->filter
+        );
+
+        $this->assertEquals(
+            ['name' => ['$nin' => ['', 'dungnd', true]]],
+            $this->parse("SELECT * FROM users WHERE name not in ('', 'dungnd', true)")->filter
+        );
+    }
+
+    /** @test */
     public function it_should_parse_null_condition()
     {
         $this->assertEquals(

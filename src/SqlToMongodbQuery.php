@@ -375,6 +375,9 @@ class SqlToMongodbQuery
 
         //TODO: handle same value for identifier value
         foreach ($identifiers as $index => $identifier) {
+            if (empty($identifier)) {
+                continue;
+            }
             $key            = "__tmp_identifier_{$salt}_{$index}";
             $value          = str_replace_first($identifier, $key, $value);
             $replaces[$key] = $identifier;
@@ -399,6 +402,10 @@ class SqlToMongodbQuery
                 //Ex: where _id in (ObjectId('6014c5e76bc47532c6f4dc7f'), ObjectId('60150e876bc47532c6058dc2'))
                 if (count($subIdentifiers) == 1 && !$this->isStringValue($item) && str_contains($item, '(')) {
                     array_unshift($subIdentifiers, substr($item, 0, strpos($item, '(')));
+                }
+
+                if ($this->isStringValue($item) && strlen($item) == 2) {
+                    $item = '';
                 }
 
                 if (is_numeric($item)) {
@@ -466,6 +473,9 @@ class SqlToMongodbQuery
         $salt = time().random_int(1000, 10000);
 
         foreach ($identifiers as $index => $identifier) {
+            if (empty($identifier)) {
+                continue;
+            }
             $key            = "__tmp_identifier_{$salt}_{$index}";
             $expr           = str_replace_first($identifier, $key, $expr);
             $replaces[$key] = $identifier;
