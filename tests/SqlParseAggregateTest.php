@@ -150,4 +150,84 @@ class SqlParseAggregateTest extends TestCase
         '
         );
     }
+
+    /** @test */
+    public function it_should_parse_select_functions()
+    {
+        $aggregate = $this->parse("SELECT avg(displays), max(clicks), min(ctr), sum(views) FROM clicks");
+        $this->assertCount(3, $aggregate->pipelines);
+        $this->assertEquals(
+            ['$match' => (object) []],
+            $aggregate->pipelines[0]
+        );
+        $this->assertEquals(
+            [
+                '$group' => [
+                    "_id"           => null,
+                    "avg(displays)" => [
+                        '$avg' => '$displays'
+                    ],
+                    "max(clicks)"   => [
+                        '$max' => '$clicks'
+                    ],
+                    "min(ctr)"      => [
+                        '$min' => '$ctr'
+                    ],
+                    "sum(views)"    => [
+                        '$sum' => '$views'
+                    ]
+                ]
+            ]
+            ,
+            $aggregate->pipelines[1]
+        );
+        $this->assertEquals(
+            [
+                '$project' => [
+                    "avg(displays)" => '$avg(displays)',
+                    "max(clicks)"   => '$max(clicks)',
+                    "min(ctr)"      => '$min(ctr)',
+                    "sum(views)"    => '$sum(views)',
+                    "_id"           => 0
+                ]
+            ],
+            $aggregate->pipelines[2]
+        );
+    }
+
+    /** @test */
+    public function it_should_group_by_nested()
+    {
+        $aggregate = $this->parse("SELECT device_info.device_type FROM clicks WHERE device_info.device_type != NULL group by device_info.device_type");
+        $this->assertCount(3, $aggregate->pipelines);
+        $this->assertEquals(
+            [
+                '$match' => [
+                    'device_info.device_type' => [
+                        '$ne' => null
+                    ]
+                ]
+            ],
+            $aggregate->pipelines[0]
+        );
+        $this->assertEquals(
+            [
+                '$group' => [
+                    '_id' => [
+                        "device_info.device_type" => '$device_info.device_type'
+                    ]
+                ]
+            ],
+            $aggregate->pipelines[1]
+        );
+        $this->assertEquals(
+            [
+                '$project' => [
+                    'device_info.device_type' => '$_id.device_info.device_type',
+                    '_id'                     => 0
+                ]
+            ],
+            $aggregate->pipelines[2]
+        );
+    }
 }

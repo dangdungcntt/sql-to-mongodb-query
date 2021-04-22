@@ -430,4 +430,32 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
             $this->parse("SELECT * FROM users WHERE 'nddcoder (dung nguyen dang)' = name")->filter
         );
     }
+
+    /** @test */
+    public function it_should_parse_null_condition()
+    {
+        $this->assertEquals(
+            ['user_agent' => ['$ne' => null]],
+            $this->parse("SELECT * FROM clicks WHERE user_agent != NULL")->filter
+        );
+
+        $this->assertEquals(
+            ['user_agent' => null],
+            $this->parse("SELECT * FROM clicks WHERE user_agent = null")->filter
+        );
+    }
+
+    /** @test */
+    public function it_should_parse_nested_condition()
+    {
+        $this->assertEquals(
+            ['device_info.device_type' => 'smartphone'],
+            $this->parse("SELECT * FROM clicks WHERE device_info.device_type = 'smartphone'")->filter
+        );
+
+        $this->assertEquals(
+            ['device_info.device_type' => ['$ne' => null]],
+            $this->parse("SELECT * FROM clicks WHERE device_info.device_type != NULL")->filter
+        );
+    }
 }

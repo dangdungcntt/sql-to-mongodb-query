@@ -13,6 +13,7 @@ use Nddcoder\SqlToMongodbQuery\Model\Aggregate;
 use Nddcoder\SqlToMongodbQuery\Model\FindQuery;
 use Nddcoder\SqlToMongodbQuery\Model\Query;
 use PhpMyAdmin\SqlParser\Components\Condition;
+use PhpMyAdmin\SqlParser\Components\Expression;
 use PhpMyAdmin\SqlParser\Parser;
 use PhpMyAdmin\SqlParser\Statements\SelectStatement;
 
@@ -331,10 +332,13 @@ class SqlToMongodbQuery
 
         switch (true) {
             case $this->isStringValue($value):
-                $value = $identifiers[0];
+                $value = substr($value, 1, strlen($value) - 2);
                 break;
             case in_array(strtolower($value), ['true', 'false']):
                 $value = strtolower($value) === 'true';
+                break;
+            case strtolower($value) == 'null':
+                $value = null;
                 break;
             case is_numeric($value):
                 settype($value, str_contains($value, '.') ? 'float' : 'int');
@@ -395,7 +399,7 @@ class SqlToMongodbQuery
                 }
 
                 if (is_numeric($item)) {
-                    settype($item, str_contains((string)$item, '.') ? 'float' : 'int');
+                    settype($item, str_contains((string) $item, '.') ? 'float' : 'int');
                 }
 
                 if (in_array(strtolower($item), ['true', 'false'])) {
@@ -509,18 +513,42 @@ class SqlToMongodbQuery
         $result = [];
 
         foreach ($projectionFunctions as $projectionFunction) {
+            $field                             = "\$".trim(
+                    str_replace_first($projectionFunction->function, '', $projectionFunction->expr),
+                    '() '
+                );
             $result[$projectionFunction->expr] = match (strtolower($projectionFunction->function)) {
                 'count' => ['$sum' => 1],
                 'sum' => [
-                    '$sum' => "\$".trim(
-                            str_replace_first($projectionFunction->function, '', $projectionFunction->expr),
-                            '() '
-                        )
+                    '$sum' => $field
+                ],
+                'avg' => [
+                    '$avg' => $field
+                ],
+                'min' => [
+                    '$min' => $field
+                ],
+                'max' => [
+                    '$max' => $field
                 ]
             };
         }
 
         return $result;
+    }
+
+    protected function getFieldFromExpression(Expression $expression)
+    {
+        if (empty($expression)) {
+            return null;
+        }
+
+        $field = $expression->column ?? $expression->expr;
+        if ($expression->table && $expression->column) {
+            return $expression->table.'.'.$field;
+        }
+
+        return $field;
     }
 
     /**
@@ -540,7 +568,7 @@ class SqlToMongodbQuery
                 $projectionFunctions[] = $expression;
                 continue;
             }
-            $field = ($expression->column ?? $expression->expr);
+            $field = $this->getFieldFromExpression($expression);
             if ($field && $field != '*') {
                 $projection[$field] = 1;
             }
@@ -561,7 +589,8 @@ class SqlToMongodbQuery
     {
         $groupBy = [];
         foreach ($statement->group ?? [] as $orderKeyword) {
-            if ($field = ($orderKeyword->expr?->column ?? $orderKeyword->expr?->expr)) {
+            $field = $this->getFieldFromExpression($orderKeyword->expr);
+            if ($field) {
                 $groupBy[$field] = "\${$field}";
             }
         }
