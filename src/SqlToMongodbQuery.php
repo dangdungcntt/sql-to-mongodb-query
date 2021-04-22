@@ -537,7 +537,7 @@ class SqlToMongodbQuery
         return $result;
     }
 
-    protected function getFieldFromExpression(Expression $expression)
+    protected function getFieldFromExpression(?Expression $expression): ?string
     {
         if (empty($expression)) {
             return null;
