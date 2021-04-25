@@ -41,14 +41,14 @@ class SqlParseAggregateTest extends TestCase
     {
         $aggregate = $this->parse(
             '
-            SELECT user_id, count(*), sum(time)
+            SELECT user_id, count(*), sum(sum)
             FROM logs
             use index index_name
             where created_at >= date("2020-12-12")
             group by user_id
             order by count(*) desc
             limit 20, 10
-            having count(*) > 2 and sum(time) > 1000
+            having count(*) > 2 and sum(sum) > 1000
         '
         );
 
@@ -64,8 +64,8 @@ class SqlParseAggregateTest extends TestCase
                     'count(*)'  => [
                         '$sum' => 1
                     ],
-                    'sum(time)' => [
-                        '$sum' => '$time'
+                    'sum(sum)' => [
+                        '$sum' => '$sum'
                     ],
                 ]
             ],
@@ -76,7 +76,7 @@ class SqlParseAggregateTest extends TestCase
                 '$project' => [
                     'user_id'   => '$_id.user_id',
                     'count(*)'  => '$count(*)',
-                    'sum(time)' => '$sum(time)',
+                    'sum(sum)' => '$sum(sum)',
                     '_id'       => 0
                 ]
             ],
@@ -88,7 +88,7 @@ class SqlParseAggregateTest extends TestCase
                     'count(*)'  => [
                         '$gt' => 2
                     ],
-                    'sum(time)' => [
+                    'sum(sum)' => [
                         '$gt' => 1000
                     ]
                 ]

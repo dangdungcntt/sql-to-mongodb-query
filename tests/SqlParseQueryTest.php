@@ -31,14 +31,14 @@ class SqlParseQueryTest extends TestCase
     {
         $this->assertEquals(
             [
-                'skip' => null,
-                'limit' => 20,
-                'hint' => 'index_name',
+                'skip'       => null,
+                'limit'      => 20,
+                'hint'       => 'index_name',
                 'projection' => [
-                    'id' => 1,
+                    'id'   => 1,
                     'name' => 1,
                 ],
-                'sort' => [
+                'sort'       => [
                     'created_at' => -1
                 ]
             ],
@@ -286,7 +286,14 @@ class SqlParseQueryTest extends TestCase
     public function it_should_parse_multi_inline_function_inside_in_condition()
     {
         $this->assertEquals(
-            ['_id' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a'), new ObjectId('5d3937af498831003e9f6f2b'), new UTCDateTime(date_create('2020-12-12'))]]],
+            [
+                '_id' => [
+                    '$in' => [
+                        new ObjectId('5d3937af498831003e9f6f2a'), new ObjectId('5d3937af498831003e9f6f2b'),
+                        new UTCDateTime(date_create('2020-12-12'))
+                    ]
+                ]
+            ],
             $this->parse("SELECT * FROM users WHERE _id in (Id('5d3937af498831003e9f6f2a'), ObjectId('5d3937af498831003e9f6f2b'), date('2020-12-12'))")->filter
         );
     }
@@ -319,12 +326,22 @@ class SqlParseQueryTest extends TestCase
         );
 
         $this->assertEquals(
-            ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]], ['age' => ['$lt' => 6]]]],
+            [
+                '$or' => [
+                    ['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]],
+                    ['age' => ['$lt' => 6]]
+                ]
+            ],
             $this->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or (age > 12 or age < 6))")->filter
         );
 
         $this->assertEquals(
-            ['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]], ['age' => ['$lt' => 6]]]],
+            [
+                '$or' => [
+                    ['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]],
+                    ['age' => ['$lt' => 6]]
+                ]
+            ],
             $this->parse("SELECT * FROM users WHERE (name = 'dung' or email = 'dangdungcntt@gmail.com') or (age > 12 or age < 6))")->filter
         );
     }
@@ -338,7 +355,7 @@ class SqlParseQueryTest extends TestCase
                     ['role' => 'admin'],
                     [
                         'username' => new Regex('admin$', 'i'),
-                        '$or' => [
+                        '$or'      => [
                             ['created_at' => ['$lt' => new UTCDateTime(date_create('2020-01-01'))]],
                             ['email' => new Regex('@nddcoder.com$', 'i')]
                         ]
@@ -357,10 +374,10 @@ where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-
                     [
                         '$and' => [
                             [
-                                'id' => 1,
-                                'name' => 'dung',
+                                'id'    => 1,
+                                'name'  => 'dung',
                                 'email' => 'dangdungcntt@gmail.com',
-                                '$or' => [
+                                '$or'   => [
                                     ['created_at' => ['$lte' => new UTCDateTime(date_create('2020-12-14'))]],
                                     ['age' => ['$gt' => 20]]
                                 ]
@@ -457,6 +474,15 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
             ['user_agent' => null],
             $this->parse("SELECT * FROM clicks WHERE user_agent = null")->filter
         );
+
+        $this->assertEquals(
+            ['user_agent' => [
+                '$in' => [
+                    null, 1, 'abc'
+                ]
+            ]],
+            $this->parse("SELECT * FROM clicks WHERE user_agent in (null, 1, 'abc')")->filter
+        );
     }
 
     /** @test */
@@ -470,6 +496,33 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
         $this->assertEquals(
             ['device_info.device_type' => ['$ne' => null]],
             $this->parse("SELECT * FROM clicks WHERE device_info.device_type != NULL")->filter
+        );
+    }
+
+    /** @test */
+    public function it_should_parse_identifier_many_times()
+    {
+        $this->assertEquals(
+            [
+                '_id' => [
+                    '$in' => [
+                        1,
+                        true,
+                        new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700')),
+                        null,
+                        '5d3937af498831003e9f6f2a',
+                        new ObjectId('5d3937af498831003e9f6f2a'),
+                        new ObjectId('5d3937af498831003e9f6f2a'),
+                    ],
+                ],
+                'created_at' => [
+                    '$gte' => new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700'))
+                ],
+                'modified_at' => [
+                    '$lte' => new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700'))
+                ]
+            ],
+            $this->parse("SELECT * FROM clicks WHERE _id in (1, true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a')) and created_at >= date('2020-12-12T10:00:00.000+0700') and modified_at <= date('2020-12-12T10:00:00.000+0700')")->filter
         );
     }
 }

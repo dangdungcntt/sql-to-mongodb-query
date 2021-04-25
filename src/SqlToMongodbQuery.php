@@ -19,7 +19,7 @@ use PhpMyAdmin\SqlParser\Statements\SelectStatement;
 
 class SqlToMongodbQuery
 {
-    const SPECIAL_DOT_CHAR = '__';
+    public const SPECIAL_DOT_CHAR = '__';
 
     /**
      * @param  string  $sql
@@ -126,7 +126,9 @@ class SqlToMongodbQuery
             ]
         ];
 
-        if (!empty($having = $this->parseHaving($statement))) {
+        $having = $this->parseHaving($statement);
+
+        if (!empty($having)) {
             $havingStep  = [
                 '$match' => $having
             ];
@@ -164,6 +166,7 @@ class SqlToMongodbQuery
     /**
      * @param  Condition[]  $conditions
      * @return array
+     * @throws \Exception
      */
     protected function parseWhereConditions(array $conditions): array
     {
@@ -171,7 +174,9 @@ class SqlToMongodbQuery
 
         $nextToIndex = 0;
 
-        for ($index = 0; $index < count($conditions); $index++) {
+        $conditionCount = count($conditions);
+
+        for ($index = 0; $index < $conditionCount; $index++) {
             $condition = $conditions[$index];
 
             if ($nextToIndex > 0 && $nextToIndex > $index) {
@@ -184,7 +189,7 @@ class SqlToMongodbQuery
                 if ($condition->expr == 'OR') {
                     $subConditions = [];
                     $bracketsDiff  = 0;
-                    for ($i = $index + 1; $i < count($conditions); $i++) {
+                    for ($i = $index + 1; $i < $conditionCount; $i++) {
                         $nextToIndex = $i;
 
                         if ($conditions[$i]->isOperator) {
@@ -198,7 +203,7 @@ class SqlToMongodbQuery
                         $subConditions[] = $conditions[$i];
                     }
 
-                    if ($nextToIndex == count($conditions) - 1) {
+                    if ($nextToIndex == $conditionCount - 1) {
                         $nextToIndex++;
                     }
 
@@ -252,7 +257,7 @@ class SqlToMongodbQuery
                 $cloneCondition
             ];
 
-            for ($i = $index + 1; $i < count($conditions); $i++) {
+            for ($i = $index + 1; $i < $conditionCount; $i++) {
                 $nextToIndex  = $i + 1;
                 $bracketsDiff += $this->getBracketsDiff($conditions[$i]);
                 if (!$conditions[$i]->isOperator && $bracketsDiff == 0) {
@@ -299,6 +304,9 @@ class SqlToMongodbQuery
         ];
     }
 
+    /**
+     * @throws \Exception
+     */
     protected function convertOperator(array $identifiers, string $expr): array
     {
         $array = explode(' ', $this->normalizeExpr($identifiers, $expr));
@@ -366,34 +374,27 @@ class SqlToMongodbQuery
         };
     }
 
+    /**
+     * @throws \Exception
+     */
     protected function parseValueForInQuery($value, $identifiers): array
     {
         $value = trim($value, '() ');
 
-        $replaces = [];
-        $salt     = time().random_int(1000, 10000);
-
-        //TODO: handle same value for identifier value
-        foreach ($identifiers as $index => $identifier) {
-            if (empty($identifier)) {
-                continue;
-            }
-            $key            = "__tmp_identifier_{$salt}_{$index}";
-            $value          = str_replace_first($identifier, $key, $value);
-            $replaces[$key] = $identifier;
-        }
+        [$replaces, $value] = $this->buildReplacers($identifiers, $value);
 
         return array_map(
             function ($item) use ($replaces) {
                 $item           = trim($item);
                 $subIdentifiers = [];
                 foreach ($replaces as $key => $identifier) {
+                    $identifier = substr($identifier, 1, strlen($identifier) - 2);
                     if (str_contains($item, $key)) {
-                        $subIdentifiers[] = $identifier;
+                        $subIdentifiers[] = trim($identifier, '\'"');
                         if ($this->isStringValue($item)) {
                             $item = $identifier;
                         } else {
-                            $item = str_replace_first($key, $identifier, $item);
+                            $item = str_replace($key, $identifier, $item);
                         }
                     }
                 }
@@ -414,6 +415,10 @@ class SqlToMongodbQuery
 
                 if (in_array(strtolower($item), ['true', 'false'])) {
                     $item = strtolower($item) === 'true';
+                }
+
+                if (strtolower($item) == 'null') {
+                    $item = null;
                 }
 
                 return $this->convertInlineFunction($item, $subIdentifiers);
@@ -455,7 +460,7 @@ class SqlToMongodbQuery
             $bracketClose += substr_count($identifier, ')');
         }
 
-        return (substr_count($condition->expr, '(') - $bracketOpen)
+        return substr_count($condition->expr, '(') - $bracketOpen
             - (substr_count($condition->expr, ')') - $bracketClose);
     }
 
@@ -463,23 +468,15 @@ class SqlToMongodbQuery
         array $filter,
         $filterKey
     ): bool {
-        return count($filter) == 1 && isset($filter[$filterKey]);
+        return count($filter) === 1 && isset($filter[$filterKey]);
     }
 
+    /**
+     * @throws \Exception
+     */
     protected function normalizeExpr($identifiers, string $expr): string
     {
-        $replaces = [];
-
-        $salt = time().random_int(1000, 10000);
-
-        foreach ($identifiers as $index => $identifier) {
-            if (empty($identifier)) {
-                continue;
-            }
-            $key            = "__tmp_identifier_{$salt}_{$index}";
-            $expr           = str_replace_first($identifier, $key, $expr);
-            $replaces[$key] = $identifier;
-        }
+        [$replaces, $expr] = $this->buildReplacers($identifiers, $expr);
 
         $expr = $this->replaceOperators($expr, ['<', '=', '>']);
 
@@ -502,6 +499,36 @@ class SqlToMongodbQuery
         return strtr($expr, $replaces);
     }
 
+    /**
+     * @throws \Exception
+     */
+    protected function buildReplacers(array $identifiers, $value): array
+    {
+        $replaces = [];
+
+        $salt = time().random_int(1000, 10000);
+
+        foreach ($identifiers as $index => $identifier) {
+            if (empty($identifier)) {
+                continue;
+            }
+
+            $key1 = "__tmp_identifier_{$salt}_{$index}_1";
+            $key2 = "__tmp_identifier_{$salt}_{$index}_2";
+
+            $value           = strtr($value, [
+                "'$identifier'"   => $key1,
+                "\"$identifier\"" => $key2,
+            ]);
+            $replaces[$key1] = "'$identifier'";
+            $replaces[$key2] = "\"$identifier\"";
+        }
+
+        return [
+            $replaces, $value
+        ];
+    }
+
     protected function replaceOperators(string $string, array $operators): string
     {
         foreach ($operators as $operator) {
@@ -514,7 +541,7 @@ class SqlToMongodbQuery
     }
 
     /**
-     * @param  \PhpMyAdmin\SqlParser\Components\Expression[]|null  $projectionFunctions
+     * @param  Expression[]|null  $projectionFunctions
      * @return array
      */
     protected function parseSelectFunctions(?array $projectionFunctions): array
@@ -526,7 +553,7 @@ class SqlToMongodbQuery
         $result = [];
 
         foreach ($projectionFunctions as $projectionFunction) {
-            $field                             = "\$".trim(
+            $field                             = '$'.trim(
                     str_replace_first($projectionFunction->function, '', $projectionFunction->expr),
                     '() '
                 );
@@ -576,7 +603,7 @@ class SqlToMongodbQuery
                 continue;
             }
             $field = $this->getFieldFromExpression($expression);
-            if ($field && $field != '*') {
+            if ($field && $field !== '*') {
                 $projection[$field] = 1;
             }
         }
@@ -598,7 +625,7 @@ class SqlToMongodbQuery
         foreach ($statement->group ?? [] as $orderKeyword) {
             $field = $this->getFieldFromExpression($orderKeyword->expr);
             if ($field) {
-                $groupBy[strtr($field, ['.' => self::SPECIAL_DOT_CHAR])] = "\${$field}";
+                $groupBy[strtr($field, ['.' => self::SPECIAL_DOT_CHAR])] = "\$$field";
             }
         }
         return empty($groupBy) ? null : $groupBy;
@@ -611,7 +638,7 @@ class SqlToMongodbQuery
         }
         $sort = [];
         foreach ($statement->order as $orderKeyword) {
-            $sort[$orderKeyword->expr->column ?? $orderKeyword->expr->expr] = $orderKeyword->type == 'DESC' ? -1 : 1;
+            $sort[$orderKeyword->expr->column ?? $orderKeyword->expr->expr] = $orderKeyword->type === 'DESC' ? -1 : 1;
         }
         return $sort;
     }
@@ -649,7 +676,7 @@ class SqlToMongodbQuery
         return $this->parseWhereConditions($statement->having);
     }
 
-    protected function validateSelect(mixed $projection, ?array $groupBy)
+    protected function validateSelect(mixed $projection, ?array $groupBy): array
     {
         $invalidSelect = [];
         foreach ($projection ?? [] as $field => $_) {
