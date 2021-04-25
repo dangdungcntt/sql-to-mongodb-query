@@ -86,7 +86,7 @@ class SqlToMongodbQuery
 
         $groupBy = $this->parseGroupBy($statement);
 
-        $invalidSelect = $this->validateSelect($projection, $groupBy);
+        $invalidSelect = $this->validateSelect($projection, $groupBy ?? []);
 
         if (count($invalidSelect) > 0 && !(count($invalidSelect) == 1 && isset($invalidSelect['_id']))) {
             throw new InvalidSelectFieldException(
@@ -391,11 +391,7 @@ class SqlToMongodbQuery
                     $identifier = substr($identifier, 1, strlen($identifier) - 2);
                     if (str_contains($item, $key)) {
                         $subIdentifiers[] = trim($identifier, '\'"');
-                        if ($this->isStringValue($item)) {
-                            $item = $identifier;
-                        } else {
-                            $item = str_replace($key, $identifier, $item);
-                        }
+                        $item             = str_replace($key, $identifier, $item);
                     }
                 }
 
@@ -417,7 +413,7 @@ class SqlToMongodbQuery
                     $item = strtolower($item) === 'true';
                 }
 
-                if (strtolower($item) == 'null') {
+                if (is_string($item) && strtolower($item) == 'null') {
                     $item = null;
                 }
 
@@ -577,14 +573,6 @@ class SqlToMongodbQuery
         return $result;
     }
 
-    protected function getFieldFromExpression(?Expression $expression): ?string
-    {
-        if (empty($expression)) {
-            return null;
-        }
-        return $expression->expr;
-    }
-
     /**
      * @param  SelectStatement  $statement
      * @return array
@@ -602,7 +590,7 @@ class SqlToMongodbQuery
                 $projectionFunctions[] = $expression;
                 continue;
             }
-            $field = $this->getFieldFromExpression($expression);
+            $field = $expression->expr;
             if ($field && $field !== '*') {
                 $projection[$field] = 1;
             }
@@ -622,8 +610,8 @@ class SqlToMongodbQuery
     protected function parseGroupBy(SelectStatement $statement): ?array
     {
         $groupBy = [];
-        foreach ($statement->group ?? [] as $orderKeyword) {
-            $field = $this->getFieldFromExpression($orderKeyword->expr);
+        foreach ($statement->group ?? [] as $groupKeyword) {
+            $field = $groupKeyword->expr->expr;
             if ($field) {
                 $groupBy[strtr($field, ['.' => self::SPECIAL_DOT_CHAR])] = "\$$field";
             }
@@ -676,7 +664,7 @@ class SqlToMongodbQuery
         return $this->parseWhereConditions($statement->having);
     }
 
-    protected function validateSelect(mixed $projection, ?array $groupBy): array
+    protected function validateSelect(mixed $projection, array $groupBy): array
     {
         $invalidSelect = [];
         foreach ($projection ?? [] as $field => $_) {
