@@ -2,6 +2,7 @@
 
 namespace Nddcoder\SqlToMongodbQuery;
 
+use Closure;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\Regex;
 use MongoDB\BSON\UTCDateTime;
@@ -20,6 +21,31 @@ use PhpMyAdmin\SqlParser\Statements\SelectStatement;
 class SqlToMongodbQuery
 {
     public const SPECIAL_DOT_CHAR = '__';
+
+    protected static array $INLINE_FUNCTION_BUILDERS = [];
+
+    public function __construct()
+    {
+        if (!isset(self::$INLINE_FUNCTION_BUILDERS['date'])) {
+            self::addInlineFunctionBuilder('date', fn($str) => new UTCDateTime(date_create($str)));
+        }
+        if (!isset(self::$INLINE_FUNCTION_BUILDERS['ObjectId'])) {
+            self::addInlineFunctionBuilder('ObjectId', fn($str) => new ObjectId($str));
+        }
+        if (!isset(self::$INLINE_FUNCTION_BUILDERS['Id'])) {
+            self::addInlineFunctionBuilder('Id', fn($str) => new ObjectId($str));
+        }
+    }
+
+    public static function addInlineFunctionBuilder(string $functionName, Closure $builder)
+    {
+        self::$INLINE_FUNCTION_BUILDERS[$functionName] = $builder;
+    }
+
+    public static function removeInlineFunctionBuilder(string $functionName)
+    {
+        unset(self::$INLINE_FUNCTION_BUILDERS[$functionName]);
+    }
 
     /**
      * @param  string  $sql
@@ -439,11 +465,12 @@ class SqlToMongodbQuery
             return $value;
         }
 
-        return match ($identifiers[0]) {
-            'date' => new UTCDateTime(date_create($identifiers[1])),
-            'ObjectId', 'Id' => new ObjectId($identifiers[1]),
-            default => $value
-        };
+        if (isset(self::$INLINE_FUNCTION_BUILDERS[$identifiers[0]])) {
+            $builder = self::$INLINE_FUNCTION_BUILDERS[$identifiers[0]];
+            return $builder($identifiers[1]);
+        }
+
+        return $value;
     }
 
     protected function getBracketsDiff(Condition $condition): int
