@@ -525,4 +525,33 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
             $this->parse("SELECT * FROM clicks WHERE _id in (1, true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a')) and created_at >= date('2020-12-12T10:00:00.000+0700') and modified_at <= date('2020-12-12T10:00:00.000+0700')")->filter
         );
     }
+
+    /** @test */
+    public function it_should_parse_string_numeric_where_in()
+    {
+        $filter = $this->parse("SELECT * FROM clicks WHERE id in ('123', '456', 789, '',  'abc', true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a'))")->filter;
+        $this->assertTrue(gettype($filter['id']['$in'][0]) == 'string');
+        $this->assertTrue(gettype($filter['id']['$in'][1]) == 'string');
+        $this->assertTrue(gettype($filter['id']['$in'][2]) == 'integer');
+        $this->assertEquals(
+            [
+                'id' => [
+                    '$in' => [
+                        '123',
+                        '456',
+                        789,
+                        '',
+                        'abc',
+                        true,
+                        new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700')),
+                        null,
+                        '5d3937af498831003e9f6f2a',
+                        new ObjectId('5d3937af498831003e9f6f2a'),
+                        new ObjectId('5d3937af498831003e9f6f2a'),
+                    ],
+                ],
+            ],
+            $filter
+        );
+    }
 }

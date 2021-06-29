@@ -414,7 +414,6 @@ class SqlToMongodbQuery
                 $item           = trim($item);
                 $subIdentifiers = [];
                 foreach ($replaces as $key => $identifier) {
-                    $identifier = substr($identifier, 1, strlen($identifier) - 2);
                     if (str_contains($item, $key)) {
                         $subIdentifiers[] = trim($identifier, '\'"');
                         $item             = str_replace($key, $identifier, $item);
@@ -427,11 +426,9 @@ class SqlToMongodbQuery
                     array_unshift($subIdentifiers, substr($item, 0, strpos($item, '(')));
                 }
 
-                if ($this->isStringValue($item) && strlen($item) == 2) {
-                    $item = '';
-                }
-
-                if (is_numeric($item)) {
+                if ($this->isStringValue($item)) {
+                    $item = substr($item, 1, strlen($item) - 2);
+                } else if (is_numeric($item)) {
                     settype($item, str_contains($item, '.') ? 'float' : 'int');
                 }
 
