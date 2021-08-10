@@ -192,7 +192,6 @@ class SqlToMongodbQuery
     /**
      * @param  Condition[]  $conditions
      * @return array
-     * @throws \Exception
      */
     protected function parseWhereConditions(array $conditions): array
     {
@@ -330,9 +329,6 @@ class SqlToMongodbQuery
         ];
     }
 
-    /**
-     * @throws \Exception
-     */
     protected function convertOperator(array $identifiers, string $expr): array
     {
         $array = explode(' ', $this->normalizeExpr($identifiers, $expr));
@@ -400,9 +396,6 @@ class SqlToMongodbQuery
         };
     }
 
-    /**
-     * @throws \Exception
-     */
     protected function parseValueForInQuery($value, $identifiers): array
     {
         $value = trim($value, '() ');
@@ -428,8 +421,10 @@ class SqlToMongodbQuery
 
                 if ($this->isStringValue($item)) {
                     $item = substr($item, 1, strlen($item) - 2);
-                } else if (is_numeric($item)) {
-                    settype($item, str_contains($item, '.') ? 'float' : 'int');
+                } else {
+                    if (is_numeric($item)) {
+                        settype($item, str_contains($item, '.') ? 'float' : 'int');
+                    }
                 }
 
                 if (in_array(strtolower($item), ['true', 'false'])) {
@@ -491,9 +486,6 @@ class SqlToMongodbQuery
         return count($filter) === 1 && isset($filter[$filterKey]);
     }
 
-    /**
-     * @throws \Exception
-     */
     protected function normalizeExpr($identifiers, string $expr): string
     {
         [$replaces, $expr] = $this->buildReplacers($identifiers, $expr);
@@ -519,14 +511,11 @@ class SqlToMongodbQuery
         return strtr($expr, $replaces);
     }
 
-    /**
-     * @throws \Exception
-     */
     protected function buildReplacers(array $identifiers, $value): array
     {
         $replaces = [];
 
-        $salt = time().random_int(1000, 10000);
+        $salt = time().rand(1000, 10000);
 
         foreach ($identifiers as $index => $identifier) {
             if (empty($identifier)) {
