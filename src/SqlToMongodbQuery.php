@@ -639,7 +639,7 @@ class SqlToMongodbQuery
         }
         $sort = [];
         foreach ($statement->order as $orderKeyword) {
-            $sort[$orderKeyword->expr->column ?? $orderKeyword->expr->expr] = $orderKeyword->type === 'DESC' ? -1 : 1;
+            $sort[$orderKeyword->expr->expr] = $orderKeyword->type === 'DESC' ? -1 : 1;
         }
         return $sort;
     }

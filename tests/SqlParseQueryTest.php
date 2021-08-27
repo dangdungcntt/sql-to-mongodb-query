@@ -105,13 +105,10 @@ class SqlParseQueryTest extends TestCase
     /** @test */
     public function it_should_parse_order()
     {
-        $query = $this->parse("SELECT * FROM users order by created_at");
-
-        $this->assertEquals(['created_at' => 1], $query->sort);
-
-        $query1 = $this->parse("SELECT * FROM users order by created_at desc");
-
-        $this->assertEquals(['created_at' => -1], $query1->sort);
+        $this->assertEquals(['created_at' => 1], $this->parse("SELECT * FROM users order by created_at")->sort);
+        $this->assertEquals(['created_at' => 1, 'modified_at' => -1], $this->parse("SELECT * FROM users order by created_at asc, modified_at desc")->sort);
+        $this->assertEquals(['created_at' => -1], $this->parse("SELECT * FROM users order by created_at desc")->sort);
+        $this->assertEquals(['info.created_at' => -1], $this->parse("SELECT * FROM users order by info.created_at desc")->sort);
     }
 
     /** @test */
