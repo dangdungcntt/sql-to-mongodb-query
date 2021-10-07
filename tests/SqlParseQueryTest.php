@@ -106,9 +106,11 @@ class SqlParseQueryTest extends TestCase
     public function it_should_parse_order()
     {
         $this->assertEquals(['created_at' => 1], $this->parse("SELECT * FROM users order by created_at")->sort);
-        $this->assertEquals(['created_at' => 1, 'modified_at' => -1], $this->parse("SELECT * FROM users order by created_at asc, modified_at desc")->sort);
+        $this->assertEquals(['created_at' => 1, 'modified_at' => -1],
+            $this->parse("SELECT * FROM users order by created_at asc, modified_at desc")->sort);
         $this->assertEquals(['created_at' => -1], $this->parse("SELECT * FROM users order by created_at desc")->sort);
-        $this->assertEquals(['info.created_at' => -1], $this->parse("SELECT * FROM users order by info.created_at desc")->sort);
+        $this->assertEquals(['info.created_at' => -1],
+            $this->parse("SELECT * FROM users order by info.created_at desc")->sort);
     }
 
     /** @test */
@@ -473,11 +475,13 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
         );
 
         $this->assertEquals(
-            ['user_agent' => [
-                '$in' => [
-                    null, 1, 'abc'
+            [
+                'user_agent' => [
+                    '$in' => [
+                        null, 1, 'abc'
+                    ]
                 ]
-            ]],
+            ],
             $this->parse("SELECT * FROM clicks WHERE user_agent in (null, 1, 'abc')")->filter
         );
     }
@@ -501,7 +505,7 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
     {
         $this->assertEquals(
             [
-                '_id' => [
+                '_id'         => [
                     '$in' => [
                         1,
                         true,
@@ -512,7 +516,7 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
                         new ObjectId('5d3937af498831003e9f6f2a'),
                     ],
                 ],
-                'created_at' => [
+                'created_at'  => [
                     '$gte' => new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700'))
                 ],
                 'modified_at' => [
@@ -549,6 +553,34 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
                 ],
             ],
             $filter
+        );
+    }
+
+    /** @test */
+    public function it_should_merge_and_condition()
+    {
+        $this->assertEquals(
+            [
+                '$or'   => [
+                    [
+                        'id' => [
+                            '$gte' => 10
+                        ]
+                    ],
+                    [
+                        'id' => [
+                            '$gte' => 1,
+                            '$lt'  => 6
+
+                        ]
+                    ]
+                ],
+                'count' => [
+                    '$gte' => 5,
+                    '$lte' => 10
+                ]
+            ],
+            $this->parse("SELECT * FROM clicks WHERE (id >= 10 or id >= 1 and id < 6) and (count >= 5 and count <= 10)")->filter
         );
     }
 }

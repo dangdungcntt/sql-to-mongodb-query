@@ -197,25 +197,25 @@ class SqlToMongodbQuery
     {
         $filter = [];
 
-        $nextToIndex = 0;
+        $skipToIndex = 0;
 
         $conditionCount = count($conditions);
 
         for ($index = 0; $index < $conditionCount; $index++) {
             $condition = $conditions[$index];
 
-            if ($nextToIndex > 0 && $nextToIndex > $index) {
+            if ($skipToIndex > 0 && $index < $skipToIndex) {
                 continue;
             }
 
-            $nextToIndex = 0;
+            $skipToIndex = 0;
 
             if ($condition->isOperator) {
                 if ($condition->expr == 'OR') {
                     $subConditions = [];
                     $bracketsDiff  = 0;
                     for ($i = $index + 1; $i < $conditionCount; $i++) {
-                        $nextToIndex = $i;
+                        $skipToIndex = $i;
 
                         if ($conditions[$i]->isOperator) {
                             if ($conditions[$i]->expr == 'OR' && $bracketsDiff == 0) {
@@ -228,8 +228,8 @@ class SqlToMongodbQuery
                         $subConditions[] = $conditions[$i];
                     }
 
-                    if ($nextToIndex == $conditionCount - 1) {
-                        $nextToIndex++;
+                    if ($skipToIndex == $conditionCount - 1) {
+                        $skipToIndex++;
                     }
 
                     $subFilter = $this->parseWhereConditions($subConditions);
@@ -283,7 +283,7 @@ class SqlToMongodbQuery
             ];
 
             for ($i = $index + 1; $i < $conditionCount; $i++) {
-                $nextToIndex  = $i + 1;
+                $skipToIndex  = $i + 1;
                 $bracketsDiff += $this->getBracketsDiff($conditions[$i]);
                 if (!$conditions[$i]->isOperator && $bracketsDiff == 0) {
                     $clone           = clone $conditions[$i];
@@ -317,8 +317,18 @@ class SqlToMongodbQuery
             return $filter;
         }
 
-        if (count(array_intersect_key($filter, $subFilter)) == 0) {
+        $intersectKeys = array_intersect_key($filter, $subFilter);
+
+        if (count($intersectKeys) == 0) {
             return array_merge($filter, $subFilter);
+        }
+
+        if (count($intersectKeys) == 1 && count($filter) == 1) {
+            $key = array_keys($intersectKeys)[0];
+            if (count(array_intersect_key($filter[$key], $subFilter[$key])) == 0) {
+                $filter[$key] = array_merge($filter[$key], $subFilter[$key]);
+                return $filter;
+            }
         }
 
         return [
