@@ -10,9 +10,8 @@ class SqlParseAggregateTest extends TestCase
 {
     protected SqlToMongodbQuery $parser;
 
-    public function __construct()
+    public function setUp(): void
     {
-        parent::__construct();
         $this->parser = new SqlToMongodbQuery();
     }
 
