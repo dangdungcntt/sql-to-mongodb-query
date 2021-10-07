@@ -11,7 +11,7 @@ beforeEach(function () {
 });
 
 /** @test */
-it('should_return_options', function () {
+it('should return options', function () {
     expect($this->parser->parse(
         'SELECT count(*), sum(time)
             FROM logs
@@ -25,7 +25,7 @@ it('should_return_options', function () {
 });
 
 /** @test */
-it('should_parse_group_by', function () {
+it('should parse group by', function () {
     $aggregate = $this->parser->parse(
         '
             SELECT user_id, count(*), sum(sum)
@@ -83,7 +83,7 @@ it('should_parse_group_by', function () {
 });
 
 /** @test */
-it('should_group_by_id_null', function () {
+it('should group by id null', function () {
     $aggregate = $this->parser->parse(
         '
             SELECT count(*)
@@ -106,7 +106,7 @@ it('should_group_by_id_null', function () {
 });
 
 /** @test */
-it('should_parse_group_by_with_empty_select_functions', function () {
+it('should parse group by with empty select functions', function () {
     $aggregate = $this->parser->parse(
         '
             SELECT user_id
@@ -124,7 +124,7 @@ it('should_parse_group_by_with_empty_select_functions', function () {
 });
 
 /** @test */
-it('should_throw_exception_for_invalid_select_field_when_group_by', function () {
+it('should throw exception for invalid select field when group by', function () {
     $this->parser->parse(
         '
             SELECT user_id, name
@@ -136,7 +136,7 @@ it('should_throw_exception_for_invalid_select_field_when_group_by', function () 
 })->throws(InvalidSelectFieldException::class);
 
 /** @test */
-it('should_parse_select_functions', function () {
+it('should parse select functions', function () {
     $aggregate = $this->parser->parse("SELECT avg(displays), max(clicks), min(ctr), sum(views) FROM clicks");
     expect($aggregate->pipelines)
         ->toHaveCount(3);
@@ -173,7 +173,7 @@ it('should_parse_select_functions', function () {
 });
 
 /** @test */
-it('should_group_by_nested', function () {
+it('should group by nested', function () {
     $aggregate = $this->parser->parse("SELECT abc.device.device_info.device_type FROM clicks WHERE abc.device.device_info.device_type != NULL group by abc.device.device_info.device_type");
     expect($aggregate->pipelines)
         ->toHaveCount(3);

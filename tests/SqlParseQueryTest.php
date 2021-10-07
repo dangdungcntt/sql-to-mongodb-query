@@ -14,7 +14,7 @@ beforeEach(function () {
     $this->parser = new SqlToMongodbQuery();
 });
 
-it('should_return_options', function () {
+it('should return options', function () {
     expect($this->parser->parse(
         'SELECT id, name FROM users use index index_name where id = 1 order by created_at desc limit 20'
     )->getOptions())
@@ -34,39 +34,39 @@ it('should_return_options', function () {
         );
 });
 
-it('should_throw_exception_for_non_statement', function () {
+it('should throw exception for non statement', function () {
     $this->parser->parse('random sql query');
 })->throws(InvalidSqlQueryException::class);
 
-it('should_throw_exception_when_invalid_select_statement', function () {
+it('should throw exception when invalid select statement', function () {
     $this->parser->parse('SELECT FROM users');
 })->throws(InvalidSelectStatementException::class);
 
-it('should_throw_exception_when_use_having_without_group_by', function () {
+it('should throw exception when use having without group by', function () {
     $this->parser->parse('SELECT * FROM users having user_id = 1');
 })->throws(InvalidSelectStatementException::class);
 
-it('should_throw_exception_for_not_support_statement', function () {
+it('should throw exception for not support statement', function () {
     $this->parser->parse('DELETE FROM USERS where id = 1');
 })->throws(NotSupportStatementException::class);
 
-it('should_return_null_for_select_statement_without_from', function () {
+it('should return null for select statement without from', function () {
     expect($this->parser->parse('SELECT * FROM where id = 1'))->toBeNull();
 });
 
-it('should_parse_collection_name', function () {
+it('should parse collection name', function () {
     expect($this->parser->parse("SELECT * FROM users")->collection)
         ->toBe('users');
 });
 
-it('should_parse_select_field', function () {
+it('should parse select field', function () {
     expect($this->parser->parse("SELECT * FROM users")->projection)
         ->toBeNull()
         ->and($this->parser->parse("SELECT id, name FROM users")->projection)
         ->toEqual(['id' => 1, 'name' => 1]);
 });
 
-it('should_parse_order', function () {
+it('should parse order', function () {
     expect($this->parser->parse("SELECT * FROM users order by created_at")->sort)
         ->toEqual(['created_at' => 1]);
 
@@ -80,7 +80,7 @@ it('should_parse_order', function () {
         ->toEqual(['info.created_at' => -1]);
 });
 
-it('should_parse_limit', function () {
+it('should parse limit', function () {
     expect($this->parser->parse("SELECT * FROM users"))
         ->limit->toEqual(0)
         ->skip->toEqual(0)
@@ -92,14 +92,14 @@ it('should_parse_limit', function () {
         ->skip->toEqual(20);
 });
 
-it('should_parse_hint', function () {
+it('should parse hint', function () {
     expect($this->parser->parse("SELECT * FROM users")->hint)
         ->toBeNull()
         ->and($this->parser->parse("SELECT * FROM users use index index_name")->hint)
         ->toEqual('index_name');
 });
 
-it('should_parse_single_where', function () {
+it('should parse single where', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE active = TRUE and banned = false")->filter)
         ->toEqual(['active' => true, 'banned' => false]);
 
@@ -137,7 +137,7 @@ it('should_parse_single_where', function () {
         ->toEqual(['role' => ['$nin' => [1, 'sdfsdf , sdfsdf', 3.2, false]]]);
 });
 
-it('should_parse_single_where_reverse', function () {
+it('should parse single where reverse', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE 'nddcoder' = name")->filter)
         ->toEqual(['name' => 'nddcoder']);
 
@@ -163,7 +163,7 @@ it('should_parse_single_where_reverse', function () {
         ->toEqual(['name' => new Regex('nddcoder', 'i')]);
 });
 
-it('should_parse_inline_function', function () {
+it('should parse inline function', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE _id = ObjectId('5d3937af498831003e9f6f2a')")->filter)
         ->toEqual(['_id' => new ObjectId('5d3937af498831003e9f6f2a')]);
 
@@ -180,7 +180,7 @@ it('should_parse_inline_function', function () {
         ->toEqual(['created_at' => ['$gte' => new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700'))]]);
 });
 
-it('should_parse_multi_inline_function_inside_in_condition', function () {
+it('should parse multi inline function inside in condition', function () {
     expect(
         $this->parser->parse("SELECT * FROM users WHERE _id in (Id('5d3937af498831003e9f6f2a'), ObjectId('5d3937af498831003e9f6f2b'), date('2020-12-12'))")->filter)
         ->toEqual([
@@ -193,7 +193,7 @@ it('should_parse_multi_inline_function_inside_in_condition', function () {
         ]);
 });
 
-it('should_parse_complex_and_condition', function () {
+it('should parse complex and condition', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com'")->filter)
         ->toEqual(['name' => 'dung', 'email' => 'dangdungcntt@gmail.com']);
 
@@ -201,7 +201,7 @@ it('should_parse_complex_and_condition', function () {
         ->toEqual(['name' => 'dung', 'email' => 'dangdungcntt@gmail.com', 'phone' => new Regex('^0983', 'i')]);
 });
 
-it('should_parse_complex_or_condition', function () {
+it('should parse complex or condition', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE name = 'dung' or email = 'dangdungcntt@gmail.com'")->filter)
         ->toEqual(['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com']]]);
 
@@ -225,7 +225,7 @@ it('should_parse_complex_or_condition', function () {
         ]);
 });
 
-it('should_parse_complex_and_or_condition', function () {
+it('should parse complex and or condition', function () {
     expect($this->parser->parse("
 SELECT * FROM users
 where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-01') or email LIKE '@nddcoder.com$')) or ip in ('10.42.0.1', '192.168.0.1')")->filter
@@ -308,7 +308,7 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
         ]);
 });
 
-it('should_parse_value_contain_special_char', function () {
+it('should parse value contain special char', function () {
     expect($this->parser->parse("SELECT * FROM clicks WHERE user_agent = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'")->filter)
         ->toEqual(['user_agent' => 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0']);
 
@@ -316,7 +316,7 @@ it('should_parse_value_contain_special_char', function () {
         ->toEqual(['name' => 'nddcoder (dung nguyen dang)']);
 });
 
-it('should_parse_value_contain_empty_string', function () {
+it('should parse value contain empty string', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE name != '' and address = ''")->filter)
         ->toEqual(['name' => ['$ne' => ''], 'address' => '']);
 
@@ -324,7 +324,7 @@ it('should_parse_value_contain_empty_string', function () {
         ->toEqual(['name' => ['$nin' => ['', 'dungnd', true]]]);
 });
 
-it('should_parse_null_condition', function () {
+it('should parse null condition', function () {
     expect($this->parser->parse("SELECT * FROM clicks WHERE user_agent != NULL")->filter)
         ->toEqual(['user_agent' => ['$ne' => null]]);
 
@@ -341,7 +341,7 @@ it('should_parse_null_condition', function () {
         ]);
 });
 
-it('should_parse_nested_condition', function () {
+it('should parse nested condition', function () {
     expect($this->parser->parse("SELECT * FROM clicks WHERE device_info.device_type = 'smartphone'")->filter)
         ->toEqual(['device_info.device_type' => 'smartphone']);
 
@@ -349,7 +349,7 @@ it('should_parse_nested_condition', function () {
         ->toEqual(['device_info.device_type' => ['$ne' => null]]);
 });
 
-it('should_parse_identifier_many_times', function () {
+it('should parse identifier many times', function () {
     expect($this->parser->parse("SELECT * FROM clicks WHERE _id in (1, true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a')) and created_at >= date('2020-12-12T10:00:00.000+0700') and modified_at <= date('2020-12-12T10:00:00.000+0700')")->filter)
         ->toEqual([
             '_id'         => [
@@ -372,7 +372,7 @@ it('should_parse_identifier_many_times', function () {
         ]);
 });
 
-it('should_parse_string_numeric_where_in', function () {
+it('should parse string numeric where in', function () {
     $filter = $this->parser->parse("SELECT * FROM clicks WHERE id in ('123', '456', 789, '',  'abc', true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a'))")->filter;
     expect(gettype($filter['id']['$in'][0]) == 'string')
         ->toBeTrue()
@@ -402,7 +402,7 @@ it('should_parse_string_numeric_where_in', function () {
         );
 });
 
-it('should_merge_and_condition', function () {
+it('should merge and condition', function () {
     expect($this->parser->parse("SELECT * FROM clicks WHERE (id >= 10 or id >= 1 and id < 6) and (count >= 5 and count <= 10)")->filter)
         ->toEqual([
             '$or'   => [

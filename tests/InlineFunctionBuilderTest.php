@@ -6,7 +6,7 @@ use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
 
-it('add_default_functions', function () {
+it('add default functions', function () {
     $parser = new SqlToMongodbQuery();
 
     expect($parser->parse("SELECT * FROM users WHERE created_at = date('2020-12-12')")->filter)
@@ -17,7 +17,7 @@ it('add_default_functions', function () {
         ->toEqual(['_id' => new ObjectId('5d3937af498831003e9f6f2a')]);
 });
 
-it('not_use_default_function_when_existed_function', function () {
+it('not use default function when existed function', function () {
     SqlToMongodbQuery::addInlineFunctionBuilder('date', fn($str) => date_create($str));
     SqlToMongodbQuery::addInlineFunctionBuilder('ObjectId', fn($str) => $str);
     SqlToMongodbQuery::addInlineFunctionBuilder('Id', fn($str) => $str);
