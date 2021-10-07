@@ -22,7 +22,7 @@ class SqlToMongodbQuery
 {
     public const SPECIAL_DOT_CHAR = '__';
 
-    protected static array $INLINE_FUNCTION_BUILDERS = [];
+    public static array $INLINE_FUNCTION_BUILDERS = [];
 
     public function __construct()
     {

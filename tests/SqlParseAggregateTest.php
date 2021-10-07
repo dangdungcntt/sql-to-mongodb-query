@@ -3,43 +3,31 @@
 namespace Nddcoder\SqlToMongodbQuery\Tests;
 
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectFieldException;
-use Nddcoder\SqlToMongodbQuery\Model\Aggregate;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
 
-class SqlParseAggregateTest extends TestCase
-{
-    protected SqlToMongodbQuery $parser;
 
-    public function setUp(): void
-    {
-        $this->parser = new SqlToMongodbQuery();
-    }
+beforeEach(function () {
+    $this->parser = new SqlToMongodbQuery();
+});
 
-    protected function parse(string $sql): ?Aggregate
-    {
-        return $this->parser->parse($sql);
-    }
-
-    /** @test */
-    public function it_should_return_options()
-    {
-        $this->assertEquals(
+/** @test */
+it('should_return_options', function () {
+    expect($this->parser->parse(
+        'SELECT count(*), sum(time)
+            FROM logs
+            use index index_name')->getOptions()
+    )
+        ->toEqual(
             [
                 'hint' => 'index_name'
-            ],
-            $this->parse(
-                'SELECT count(*), sum(time)
-            FROM logs
-            use index index_name'
-            )->getOptions()
+            ]
         );
-    }
+});
 
-    /** @test */
-    public function it_should_parse_group_by()
-    {
-        $aggregate = $this->parse(
-            '
+/** @test */
+it('should_parse_group_by', function () {
+    $aggregate = $this->parser->parse(
+        '
             SELECT user_id, count(*), sum(sum)
             FROM logs
             use index index_name
@@ -49,184 +37,170 @@ class SqlParseAggregateTest extends TestCase
             limit 20, 10
             having count(*) > 2 and sum(sum) > 1000
         '
-        );
+    );
 
-        $this->assertEquals('logs', $aggregate->collection);
-        $this->assertEquals('index_name', $aggregate->hint);
-        $this->assertCount(7, $aggregate->pipelines);
-        $this->assertEquals(
-            [
-                '$group' => [
-                    '_id'       => [
-                        'user_id' => '$user_id'
-                    ],
-                    'count(*)'  => [
-                        '$sum' => 1
-                    ],
-                    'sum(sum)' => [
-                        '$sum' => '$sum'
-                    ],
-                ]
-            ],
-            $aggregate->pipelines[1]
-        );
-        $this->assertEquals(
-            [
-                '$project' => [
-                    'user_id'   => '$_id.user_id',
-                    'count(*)'  => '$count(*)',
-                    'sum(sum)' => '$sum(sum)',
-                    '_id'       => 0
-                ]
-            ],
-            $aggregate->pipelines[2]
-        );
-        $this->assertEquals(
-            [
-                '$match' => [
-                    'count(*)'  => [
-                        '$gt' => 2
-                    ],
-                    'sum(sum)' => [
-                        '$gt' => 1000
-                    ]
-                ]
-            ],
-            $aggregate->pipelines[3]
-        );
-    }
+    expect($aggregate)
+        ->collection->toEqual('logs')
+        ->hint->toEqual('index_name')
+        ->pipelines->toHaveCount(7);
 
-    /** @test */
-    public function it_should_group_by_id_null()
-    {
-        $aggregate = $this->parse(
-            '
+    expect($aggregate->pipelines[1])
+        ->toEqual([
+            '$group' => [
+                '_id'      => [
+                    'user_id' => '$user_id'
+                ],
+                'count(*)' => [
+                    '$sum' => 1
+                ],
+                'sum(sum)' => [
+                    '$sum' => '$sum'
+                ],
+            ]
+        ]);
+
+    expect($aggregate->pipelines[2])
+        ->toEqual([
+            '$project' => [
+                'user_id'  => '$_id.user_id',
+                'count(*)' => '$count(*)',
+                'sum(sum)' => '$sum(sum)',
+                '_id'      => 0
+            ]
+        ]);
+
+    expect($aggregate->pipelines[3])
+        ->toEqual([
+            '$match' => [
+                'count(*)' => [
+                    '$gt' => 2
+                ],
+                'sum(sum)' => [
+                    '$gt' => 1000
+                ]
+            ]
+        ]);
+});
+
+/** @test */
+it('should_group_by_id_null', function () {
+    $aggregate = $this->parser->parse(
+        '
             SELECT count(*)
             FROM logs
         '
-        );
+    );
 
-        $this->assertCount(3, $aggregate->pipelines);
-        $this->assertEquals(
-            [
-                '$group' => [
-                    '_id'      => null,
-                    'count(*)' => [
-                        '$sum' => 1
-                    ]
+    expect($aggregate->pipelines)
+        ->toHaveCount(3);
+
+    expect($aggregate->pipelines[1])
+        ->toEqual([
+            '$group' => [
+                '_id'      => null,
+                'count(*)' => [
+                    '$sum' => 1
                 ]
-            ],
-            $aggregate->pipelines[1]
-        );
-    }
+            ]
+        ]);
+});
 
-    /** @test */
-    public function it_should_parse_group_by_with_empty_select_functions()
-    {
-        $aggregate = $this->parse(
-            '
+/** @test */
+it('should_parse_group_by_with_empty_select_functions', function () {
+    $aggregate = $this->parser->parse(
+        '
             SELECT user_id
             FROM logs
             where created_at >= date("2020-12-12")
             group by user_id
         '
-        );
+    );
 
-        $this->assertEquals('logs', $aggregate->collection);
-        $this->assertCount(3, $aggregate->pipelines);
-    }
+    expect($aggregate->collection)
+        ->toEqual('logs');
 
-    /** @test */
-    public function it_should_throw_exception_for_invalid_select_field_when_group_by()
-    {
-        $this->expectException(InvalidSelectFieldException::class);
-        $this->parse(
-            '
+    expect($aggregate->pipelines)
+        ->toHaveCount(3);
+});
+
+/** @test */
+it('should_throw_exception_for_invalid_select_field_when_group_by', function () {
+    $this->parser->parse(
+        '
             SELECT user_id, name
             FROM logs
             where created_at >= date("2020-12-12")
             group by user_id
         '
-        );
-    }
+    );
+})->throws(InvalidSelectFieldException::class);
 
-    /** @test */
-    public function it_should_parse_select_functions()
-    {
-        $aggregate = $this->parse("SELECT avg(displays), max(clicks), min(ctr), sum(views) FROM clicks");
-        $this->assertCount(3, $aggregate->pipelines);
-        $this->assertEquals(
-            ['$match' => (object) []],
-            $aggregate->pipelines[0]
-        );
-        $this->assertEquals(
-            [
-                '$group' => [
-                    "_id"           => null,
-                    "avg(displays)" => [
-                        '$avg' => '$displays'
-                    ],
-                    "max(clicks)"   => [
-                        '$max' => '$clicks'
-                    ],
-                    "min(ctr)"      => [
-                        '$min' => '$ctr'
-                    ],
-                    "sum(views)"    => [
-                        '$sum' => '$views'
-                    ]
+/** @test */
+it('should_parse_select_functions', function () {
+    $aggregate = $this->parser->parse("SELECT avg(displays), max(clicks), min(ctr), sum(views) FROM clicks");
+    expect($aggregate->pipelines)
+        ->toHaveCount(3);
+    expect($aggregate->pipelines[0])
+        ->toEqual(['$match' => (object) []]);
+    expect($aggregate->pipelines[1])
+        ->toEqual([
+            '$group' => [
+                "_id"           => null,
+                "avg(displays)" => [
+                    '$avg' => '$displays'
+                ],
+                "max(clicks)"   => [
+                    '$max' => '$clicks'
+                ],
+                "min(ctr)"      => [
+                    '$min' => '$ctr'
+                ],
+                "sum(views)"    => [
+                    '$sum' => '$views'
                 ]
             ]
-            ,
-            $aggregate->pipelines[1]
-        );
-        $this->assertEquals(
-            [
-                '$project' => [
-                    "avg(displays)" => '$avg(displays)',
-                    "max(clicks)"   => '$max(clicks)',
-                    "min(ctr)"      => '$min(ctr)',
-                    "sum(views)"    => '$sum(views)',
-                    "_id"           => 0
-                ]
-            ],
-            $aggregate->pipelines[2]
-        );
-    }
+        ]);
+    expect($aggregate->pipelines[2])
+        ->toEqual([
+            '$project' => [
+                "avg(displays)" => '$avg(displays)',
+                "max(clicks)"   => '$max(clicks)',
+                "min(ctr)"      => '$min(ctr)',
+                "sum(views)"    => '$sum(views)',
+                "_id"           => 0
+            ]
+        ]);
+});
 
-    /** @test */
-    public function it_should_group_by_nested()
-    {
-        $aggregate = $this->parse("SELECT abc.device.device_info.device_type FROM clicks WHERE abc.device.device_info.device_type != NULL group by abc.device.device_info.device_type");
-        $this->assertCount(3, $aggregate->pipelines);
-        $this->assertEquals(
-            [
-                '$match' => [
-                    'abc.device.device_info.device_type' => [
-                        '$ne' => null
-                    ]
+/** @test */
+it('should_group_by_nested', function () {
+    $aggregate = $this->parser->parse("SELECT abc.device.device_info.device_type FROM clicks WHERE abc.device.device_info.device_type != NULL group by abc.device.device_info.device_type");
+    expect($aggregate->pipelines)
+        ->toHaveCount(3);
+
+    expect($aggregate->pipelines[0])
+        ->toEqual([
+            '$match' => [
+                'abc.device.device_info.device_type' => [
+                    '$ne' => null
                 ]
-            ],
-            $aggregate->pipelines[0]
-        );
-        $this->assertEquals(
-            [
-                '$group' => [
-                    '_id' => [
-                        'abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR .'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type' => '$abc.device.device_info.device_type'
-                    ]
+            ]
+        ]);
+
+    expect($aggregate->pipelines[1])
+        ->toEqual([
+            '$group' => [
+                '_id' => [
+                    'abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type' => '$abc.device.device_info.device_type'
                 ]
-            ],
-            $aggregate->pipelines[1]
-        );
-        $this->assertEquals(
-            [
-                '$project' => [
-                    'abc.device.device_info.device_type' => '$_id.abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR .'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type',
-                    '_id'                     => 0
-                ]
-            ],
-            $aggregate->pipelines[2]
-        );
-    }
-}
+            ]
+        ]);
+
+    expect($aggregate->pipelines[2])
+        ->toEqual([
+            '$project' => [
+                'abc.device.device_info.device_type' => '$_id.abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type',
+                '_id'                                => 0
+            ]
+        ]);
+});
