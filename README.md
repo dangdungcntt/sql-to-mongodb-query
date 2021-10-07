@@ -36,22 +36,22 @@ $query = $parser->parse("
 ");
 
 /*
-Nddcoder\SqlToMongodbQuery\Model\FindQuery {#376 ▼
-  +filter: array:2 [▼
+Nddcoder\SqlToMongodbQuery\Model\FindQuery {#473
+  +filter: array:2 [
     "active" => true
-    "created_at" => array:1 [▼
-      "$gte" => MongoDB\BSON\UTCDateTime {#306 ▼
-        +"milliseconds": "1609434000000"
+    "created_at" => array:1 [
+      "$gte" => MongoDB\BSON\UTCDateTime {#926
+        +"milliseconds": "1609459200000"
       }
     ]
   ]
-  +projection: array:4 [▼
+  +projection: array:4 [
     "id" => 1
     "username" => 1
     "email" => 1
     "created_at" => 1
   ]
-  +sort: array:1 [▼
+  +sort: array:1 [
     "created_at" => -1
   ]
   +limit: 20
@@ -59,6 +59,7 @@ Nddcoder\SqlToMongodbQuery\Model\FindQuery {#376 ▼
   +collection: "users"
   +hint: "active_1_created_at_1"
 }
+
 */
 ```
 
@@ -76,36 +77,38 @@ $query = $parser->parse("
 ");
 
 /*
-Nddcoder\SqlToMongodbQuery\Model\Aggregate {#373 ▼
-  +pipelines: array:4 [▼
-    0 => array:1 [▼
-      "$match" => array:2 [▼
+Nddcoder\SqlToMongodbQuery\Model\Aggregate {#493
+  +pipelines: array:4 [
+    0 => array:1 [
+      "$match" => array:2 [
         "status" => 1
-        "created_at" => array:1 [▼
-          "$gte" => MongoDB\BSON\UTCDateTime {#306 ▼
-            +"milliseconds": "1625072400000"
+        "created_at" => array:1 [
+          "$gte" => MongoDB\BSON\UTCDateTime {#926
+            +"milliseconds": "1625097600000"
           }
         ]
       ]
     ]
-    1 => array:1 [▼
-      "$group" => array:2 [▼
-        "_id" => array:1 [▶]
-        "count(*)" => array:1 [▼
+    1 => array:1 [
+      "$group" => array:2 [
+        "_id" => array:1 [
+          "date" => "$date"
+        ]
+        "count(*)" => array:1 [
           "$sum" => 1
         ]
       ]
     ]
-    2 => array:1 [▼
-      "$project" => array:3 [▼
+    2 => array:1 [
+      "$project" => array:3 [
         "date" => "$_id.date"
         "count(*)" => "$count(*)"
         "_id" => 0
       ]
     ]
-    3 => array:1 [▼
-      "$match" => array:1 [▼
-        "count(*)" => array:1 [▼
+    3 => array:1 [
+      "$match" => array:1 [
+        "count(*)" => array:1 [
           "$gt" => 100
         ]
       ]
