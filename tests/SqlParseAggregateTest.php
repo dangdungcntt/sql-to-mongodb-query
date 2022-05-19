@@ -10,7 +10,6 @@ beforeEach(function () {
     $this->parser = new SqlToMongodbQuery();
 });
 
-/** @test */
 it('should return options', function () {
     expect($this->parser->parse(
         'SELECT count(*), sum(time)
@@ -24,7 +23,6 @@ it('should return options', function () {
         );
 });
 
-/** @test */
 it('should parse group by', function () {
     $aggregate = $this->parser->parse(
         '
@@ -82,7 +80,6 @@ it('should parse group by', function () {
         ]);
 });
 
-/** @test */
 it('should group by id null', function () {
     $aggregate = $this->parser->parse(
         '
@@ -105,7 +102,6 @@ it('should group by id null', function () {
         ]);
 });
 
-/** @test */
 it('should parse group by with empty select functions', function () {
     $aggregate = $this->parser->parse(
         '
@@ -123,7 +119,6 @@ it('should parse group by with empty select functions', function () {
         ->toHaveCount(3);
 });
 
-/** @test */
 it('should throw exception for invalid select field when group by', function () {
     $this->parser->parse(
         '
@@ -135,7 +130,6 @@ it('should throw exception for invalid select field when group by', function () 
     );
 })->throws(InvalidSelectFieldException::class);
 
-/** @test */
 it('should parse select functions', function () {
     $aggregate = $this->parser->parse("SELECT avg(displays), max(clicks), min(ctr), sum(views) FROM clicks");
     expect($aggregate->pipelines)
@@ -172,7 +166,6 @@ it('should parse select functions', function () {
         ]);
 });
 
-/** @test */
 it('should group by nested', function () {
     $aggregate = $this->parser->parse("SELECT abc.device.device_info.device_type FROM clicks WHERE abc.device.device_info.device_type != NULL group by abc.device.device_info.device_type");
     expect($aggregate->pipelines)
@@ -201,6 +194,77 @@ it('should group by nested', function () {
             '$project' => [
                 'abc.device.device_info.device_type' => '$_id.abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type',
                 '_id'                                => 0
+            ]
+        ]);
+});
+
+it('should parse expression in select fields', function () {
+    $aggregate = $this->parser->parse("
+        SELECT date, sum(cost) / (sum(impressions) / 1000 + sum(clicks)) * 100000 as est_rev, sum(clicks) as total_clicks, sum(impressions) as total_impressions
+        FROM  reports
+        where  date >= 220516
+        group by date
+    ");
+
+    expect($aggregate->pipelines)
+        ->toHaveCount(3);
+
+    expect($aggregate->pipelines[0])
+        ->toEqual([
+            '$match' => [
+                'date' => [
+                    '$gte' => 220516
+                ]
+            ]
+        ]);
+
+    expect($aggregate->pipelines[1])
+        ->toEqual([
+            '$group' => [
+                '_id'              => [
+                    'date' => '$date'
+                ],
+                'sum(clicks)'      => [
+                    '$sum' => '$clicks'
+                ],
+                'sum(impressions)' => [
+                    '$sum' => '$impressions'
+                ],
+                'sum(cost)'        => [
+                    '$sum' => '$cost'
+                ],
+            ]
+        ]);
+
+    expect($aggregate->pipelines[2])
+        ->toEqual([
+            '$project' => [
+                'date'              => '$_id.date',
+                'total_clicks'      => '$sum(clicks)',
+                'total_impressions' => '$sum(impressions)',
+                'est_rev'           => [
+                    '$multiple' => [
+                        [
+                            '$divide' => [
+                                '$sum(cost)',
+                                [
+                                    '$add' => [
+                                        [
+                                            '$divide' => [
+                                                '$sum(impressions)',
+                                                1000
+                                            ]
+                                        ],
+                                        '$sum(clicks)'
+                                    ]
+
+                                ]
+                            ]
+                        ],
+                        100000
+                    ]
+                ],
+                '_id' => 0
             ]
         ]);
 });

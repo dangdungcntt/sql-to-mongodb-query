@@ -9,7 +9,9 @@ use MongoDB\BSON\UTCDateTime;
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectFieldException;
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectStatementException;
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSqlQueryException;
+use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportAggregateFunctionException;
 use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportStatementException;
+use Nddcoder\SqlToMongodbQuery\Lib\MongoExpressionConverter;
 use Nddcoder\SqlToMongodbQuery\Model\Aggregate;
 use Nddcoder\SqlToMongodbQuery\Model\FindQuery;
 use Nddcoder\SqlToMongodbQuery\Model\Query;
@@ -120,16 +122,14 @@ class SqlToMongodbQuery
             );
         }
 
-        $selectFunctions = $this->parseSelectFunctions($projectionFunctions);
+        [$selectFunctions, $additionProjects] = $this->parseSelectFunctions($projectionFunctions);
 
         $project = [];
         foreach (array_keys($projection ?? []) as $field) {
             $project[$field] = '$_id.'.strtr($field, ['.' => self::SPECIAL_DOT_CHAR]);
         }
 
-        foreach ($selectFunctions as $field => $_) {
-            $project[$field] = '$'.$field;
-        }
+        $project = array_merge($project, $additionProjects);
 
         if (!isset($project['_id']) && !empty($project)) {
             $project['_id'] = 0;
@@ -562,38 +562,120 @@ class SqlToMongodbQuery
     /**
      * @param  Expression[]|null  $projectionFunctions
      * @return array
+     * @throws \Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportAggregateFunctionException
      */
     protected function parseSelectFunctions(?array $projectionFunctions): array
     {
         if (empty($projectionFunctions)) {
-            return [];
+            return [[], []];
         }
 
-        $result = [];
+        $results            = [];
+        $additionalProjects = [];
+
+        usort($projectionFunctions, function ($a, $b) {
+            $ar = $this->isMathExpression($a->expr) ? 1 : -1;
+            $br = $this->isMathExpression($b->expr) ? -1 : 1;
+
+            return $ar + $br;
+        });
 
         foreach ($projectionFunctions as $projectionFunction) {
-            $field                             = '$'.trim(
-                    str_replace_first($projectionFunction->function, '', $projectionFunction->expr),
-                    '() '
-                );
-            $result[$projectionFunction->expr] = match (strtolower($projectionFunction->function)) {
-                'count' => ['$sum' => 1],
-                'sum' => [
-                    '$sum' => $field
-                ],
-                'avg' => [
-                    '$avg' => $field
-                ],
-                'min' => [
-                    '$min' => $field
-                ],
-                'max' => [
-                    '$max' => $field
-                ]
-            };
+            $result = $this->convertSelectExpression($projectionFunction);
+
+            if ($result['math']) {
+                $additionalProjects[$projectionFunction->alias ?? $projectionFunction->expr] = $result['expression'];
+            }
+
+            foreach ($result['fields'] as $fieldData) {
+                if (array_key_exists('alias', $fieldData)) {
+                    $additionalProjects[$fieldData['alias'] ?? $fieldData['expr']] = '$'.$fieldData['expr'];
+                }
+
+                if (array_key_exists($fieldData['expr'], $results)) {
+                    continue;
+                }
+
+                $results[$fieldData['expr']] = match (strtolower($fieldData['function'])) {
+                    'count' => ['$sum' => 1],
+                    'sum' => [
+                        '$sum' => $fieldData['field']
+                    ],
+                    'avg' => [
+                        '$avg' => $fieldData['field']
+                    ],
+                    'min' => [
+                        '$min' => $fieldData['field']
+                    ],
+                    'max' => [
+                        '$max' => $fieldData['field']
+                    ],
+                    default => throw new NotSupportAggregateFunctionException('Not support "'.strtolower($fieldData['function']).'" aggregate fuction')
+                };
+            }
         }
 
-        return $result;
+        return [$results, $additionalProjects];
+    }
+
+    protected function convertSelectExpression(Expression $expr): array
+    {
+        $exprString = $expr->expr;
+        if (!$this->isMathExpression($exprString)) {
+            return [
+                'math'   => false,
+                'fields' => [
+                    [
+                        'alias'    => $expr->alias,
+                        'expr'     => $expr->expr,
+                        'function' => $expr->function,
+                        'field'    => '$'.trim(
+                                str_replace_first($expr->function, '', $exprString),
+                                '() '
+                            )
+                    ]
+                ]
+            ];
+        }
+
+        $expression = MongoExpressionConverter::convert($exprString);
+        $fields     = [];
+
+        array_walk_recursive($expression, function (&$value) use (&$fields) {
+            if (str_contains($value, '(')) {
+                $function = str_before($value, '(');
+
+                $fields[$value] = [
+                    'expr'     => $value,
+                    'function' => $function,
+                    'field'    => '$'.trim(
+                            str_replace_first($function, '', $value),
+                            '() '
+                        )
+                ];
+                $value          = '$'.$value;
+                return;
+            }
+
+            if (is_numeric($value)) {
+                if (str_contains($value, '.')) {
+                    $value = floatval($value);
+                } else {
+                    $value = intval($value);
+                }
+            }
+        });
+
+        return [
+            'math'       => true,
+            'expression' => $expression,
+            'fields'     => array_values($fields)
+        ];
+    }
+
+    protected function isMathExpression($expr): bool
+    {
+        return preg_match('/[+\-*\/]/', $expr) === 1 && !str_contains($expr, '(*)');
     }
 
     /**
