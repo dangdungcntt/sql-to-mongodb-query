@@ -28,7 +28,7 @@ class PostfixConverter
     protected static function normalizeExpression(string $expression): string
     {
         $expression = preg_replace('/ /', '', $expression);
-        $expression = preg_replace('/(\+|-|\*|\/|\)|\(|\))/', ' $1 ', $expression);
+        $expression = preg_replace('/([+\-*\/%()])/', ' $1 ', $expression);
         $expression = preg_replace('!\s+!', ' ', $expression);
         return trim($expression);
     }
