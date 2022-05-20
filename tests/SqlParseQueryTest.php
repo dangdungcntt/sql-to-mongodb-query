@@ -425,3 +425,32 @@ it('should merge and condition', function () {
             ]
         ]);
 });
+
+
+it('support where is not', function () {
+    expect($this->parser->parse("SELECT * FROM clicks WHERE created_at is not null")->filter)
+        ->toEqual([
+            'created_at' => [
+                '$ne' => null
+            ]
+        ]);
+
+    expect($this->parser->parse("SELECT * FROM clicks WHERE created_at is not date('2022-01-01')")->filter)
+        ->toEqual([
+            'created_at' => [
+                '$ne' => new UTCDateTime(date_create('2022-01-01'))
+            ]
+        ]);
+});
+
+it('support where is', function () {
+    expect($this->parser->parse("SELECT * FROM clicks WHERE created_at is null")->filter)
+        ->toEqual([
+            'created_at' => null
+        ]);
+
+    expect($this->parser->parse("SELECT * FROM clicks WHERE created_at is date('2022-01-01')")->filter)
+        ->toEqual([
+            'created_at' => new UTCDateTime(date_create('2022-01-01'))
+        ]);
+});

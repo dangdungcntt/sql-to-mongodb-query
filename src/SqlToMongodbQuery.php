@@ -342,28 +342,33 @@ class SqlToMongodbQuery
 
     protected function convertOperator(array $identifiers, string $expr): array
     {
-        $array = explode(' ', $this->normalizeExpr($identifiers, $expr));
+        $tokens     = explode(' ', $this->normalizeExpr($identifiers, $expr));
+        $tokenCount = count($tokens);
 
         $reverseOperator = false;
         $not             = false;
 
         if (str_contains($identifiers[0], ' ')) {
-            $field           = trim(array_pop($array));
-            $operator        = trim(array_pop($array));
+            $field           = trim(array_pop($tokens));
+            $operator        = trim(array_pop($tokens));
             $reverseOperator = true;
         } else {
-            $field    = trim(array_shift($array));
-            $operator = trim(array_shift($array));
+            $field    = trim(array_shift($tokens));
+            $operator = trim(array_shift($tokens));
         }
 
         $operator = strtolower($operator);
 
         if ($operator == 'not') {
             $not      = true;
-            $operator = strtolower(array_shift($array));
+            $operator = strtolower(array_shift($tokens));
+        } else {
+            if ($operator == 'is' && $tokenCount == 4) {
+                $not = strtolower(array_shift($tokens)) == 'not';
+            }
         }
 
-        $value = join(' ', $array);
+        $value = join(' ', $tokens);
 
         if (is_numeric($field) || $this->isStringValue($field) || $this->isInlineFunction($field)) {
             $tmp             = $value;
@@ -401,6 +406,7 @@ class SqlToMongodbQuery
             '>=' => [$field => [($reverseOperator ? '$lte' : '$gte') => $value]],
             '<>', '!=' => [$field => ['$ne' => $value]],
             '=' => [$field => $value],
+            'is' => [$field => $not ? ['$ne' => $value] : $value],
             'like' => [$field => $not ? ['$not' => new Regex($value, 'i')] : new Regex($value, 'i')],
             'in' => [$field => [($not ? '$nin' : '$in') => $this->parseValueForInQuery($value, $identifiers)]],
             default => []
