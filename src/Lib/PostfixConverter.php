@@ -160,6 +160,6 @@ class PostfixConverter
             $output[] = $token;
         }
 
-        return array_merge($output, $stack->getData());
+        return array_merge($output, array_reverse($stack->getData()));
     }
 }
