@@ -3,6 +3,7 @@
 namespace Nddcoder\SqlToMongodbQuery\Tests;
 
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectFieldException;
+use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportAggregateFunctionException;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
 
 
@@ -130,6 +131,17 @@ it('should throw exception for invalid select field when group by', function () 
     );
 })->throws(InvalidSelectFieldException::class);
 
+it('should throw exception for invalid group by function when group by', function () {
+    $this->parser->parse(
+        '
+            SELECT user_id, avgg(age)
+            FROM logs
+            where created_at >= date("2020-12-12")
+            group by user_id
+        '
+    );
+})->throws(NotSupportAggregateFunctionException::class);
+
 it('should parse select functions', function () {
     $aggregate = $this->parser->parse("SELECT avg(displays), max(clicks), min(ctr), sum(views) FROM clicks");
     expect($aggregate->pipelines)
@@ -243,7 +255,7 @@ it('should parse expression in select fields', function () {
                 'total_clicks'      => '$sum(clicks)',
                 'total_impressions' => '$sum(impressions)',
                 'est_rev'           => [
-                    '$multiple' => [
+                    '$multiply' => [
                         [
                             '$divide' => [
                                 '$sum(cost)',
@@ -264,7 +276,102 @@ it('should parse expression in select fields', function () {
                         100000
                     ]
                 ],
-                '_id' => 0
+                '_id'               => 0
+            ]
+        ]);
+});
+
+it('should parse complex expression in select fields', function () {
+    $aggregate = $this->parser->parse("
+        SELECT date, (sum(cost)) / (sum(clicks + impressions) / count(abc + def) + count(*) + max(displays)) * 1000.00 as est_rev, sum(clicks) as total_clicks, sum(impressions) as total_impressions
+        FROM  reports
+        where  date >= 220516
+        group by date
+    ");
+
+    expect($aggregate->pipelines)
+        ->toHaveCount(3);
+
+    expect($aggregate->pipelines[0])
+        ->toEqual([
+            '$match' => [
+                'date' => [
+                    '$gte' => 220516
+                ]
+            ]
+        ]);
+
+    expect($aggregate->pipelines[1])
+        ->toEqual([
+            '$group' => [
+                '_id'              => [
+                    'date' => '$date'
+                ],
+                'sum(clicks)'      => [
+                    '$sum' => '$clicks'
+                ],
+                'sum(impressions)' => [
+                    '$sum' => '$impressions'
+                ],
+                'sum(cost)'        => [
+                    '$sum' => '$cost'
+                ],
+                'count(*)'         => [
+                    '$sum' => 1
+                ],
+                'max(displays)'    => [
+                    '$max' => '$displays'
+                ],
+                '__tmp_expression_'.md5(json_encode([
+                    '$sum' => [
+                        '$add' => ['clicks', 'impressions']
+                    ]
+                ]))                => [
+                    '$sum' => [
+                        '$add' => ['clicks', 'impressions']
+                    ]
+                ]
+            ]
+        ]);
+
+    expect($aggregate->pipelines[2])
+        ->toEqual([
+            '$project' => [
+                'date'              => '$_id.date',
+                'total_clicks'      => '$sum(clicks)',
+                'total_impressions' => '$sum(impressions)',
+                'est_rev'           => [
+                    '$multiply' => [
+                        [
+                            '$divide' => [
+                                '$sum(cost)',
+                                [
+                                    '$add' => [
+                                        [
+                                            '$add' => [
+                                                [
+                                                    '$divide' => [
+                                                        '$__tmp_expression_'.md5(json_encode([
+                                                            '$sum' => [
+                                                                '$add' => ['clicks', 'impressions']
+                                                            ]
+                                                        ])),
+                                                        '$count(*)'
+                                                    ]
+                                                ],
+                                                '$count(*)'
+                                            ]
+                                        ],
+                                        '$max(displays)'
+                                    ]
+
+                                ]
+                            ]
+                        ],
+                        1000.00
+                    ]
+                ],
+                '_id'               => 0
             ]
         ]);
 });

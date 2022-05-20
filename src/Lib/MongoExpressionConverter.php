@@ -2,14 +2,17 @@
 
 namespace Nddcoder\SqlToMongodbQuery\Lib;
 
+use Nddcoder\SqlToMongodbQuery\Lib\DataStruct\Stack;
+
 class MongoExpressionConverter
 {
     public const OPERATORS = [
-        '+' => '$add',
-        '-' => '$subtract',
-        '*' => '$multiple',
-        '/' => '$divide',
-        '%' => '$mod'
+        PostfixConverter::__CALL__ => '',
+        '+'                        => '$add',
+        '-'                        => '$subtract',
+        '*'                        => '$multiply',
+        '/'                        => '$divide',
+        '%'                        => '$mod'
     ];
 
     protected static function isOperator($char): bool
@@ -20,23 +23,32 @@ class MongoExpressionConverter
     public static function convert($str)
     {
         $postfixTokens = PostfixConverter::convert($str);
-        $stack = [];
+
+        $stack = new Stack();
 
         foreach ($postfixTokens as $token) {
             if (self::isOperator($token)) {
-                $arg2    = array_pop($stack);
-                $arg1    = array_pop($stack);
-                $stack[] = [
+                $arg2 = $stack->pop();
+                $arg1 = $stack->pop();
+
+                if (PostfixConverter::__CALL__ == $token) {
+                    $stack->push([
+                        ('$'.$arg1) => $arg2
+                    ]);
+                    continue;
+                }
+
+                $stack->push([
                     (self::OPERATORS[$token]) => [
                         $arg1,
                         $arg2,
                     ]
-                ];
+                ]);
                 continue;
             }
-            $stack[] = $token;
+            $stack->push($token);
         }
 
-        return array_pop($stack);
+        return $stack->pop();
     }
 }

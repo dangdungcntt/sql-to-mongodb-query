@@ -11,6 +11,7 @@ use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectStatementException;
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSqlQueryException;
 use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportAggregateFunctionException;
 use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportStatementException;
+use Nddcoder\SqlToMongodbQuery\Lib\GroupByArithmeticConverter;
 use Nddcoder\SqlToMongodbQuery\Lib\MongoExpressionConverter;
 use Nddcoder\SqlToMongodbQuery\Model\Aggregate;
 use Nddcoder\SqlToMongodbQuery\Model\FindQuery;
@@ -610,6 +611,7 @@ class SqlToMongodbQuery
                     'max' => [
                         '$max' => $fieldData['field']
                     ],
+                    'custom' => $fieldData['expression'],
                     default => throw new NotSupportAggregateFunctionException('Not support "'.strtolower($fieldData['function']).'" aggregate fuction')
                 };
             }
@@ -620,8 +622,9 @@ class SqlToMongodbQuery
 
     protected function convertSelectExpression(Expression $expr): array
     {
-        $exprString = $expr->expr;
-        if (!$this->isMathExpression($exprString)) {
+        $expression = MongoExpressionConverter::convert($expr->expr);
+
+        if (!is_array($expression)) {
             return [
                 'math'   => false,
                 'fields' => [
@@ -630,19 +633,34 @@ class SqlToMongodbQuery
                         'expr'     => $expr->expr,
                         'function' => $expr->function,
                         'field'    => '$'.trim(
-                                str_replace_first($expr->function, '', $exprString),
+                                str_replace_first($expr->function, '', $expr->expr),
                                 '() '
                             )
                     ]
                 ]
             ];
         }
+        $fields = [];
 
-        $expression = MongoExpressionConverter::convert($exprString);
-        $fields     = [];
+        $expression = GroupByArithmeticConverter::convert($expression, function ($expr, $expression) use (&$fields) {
+            $fields[$expr] = [
+                'expr'       => $expr,
+                'function'   => 'custom',
+                'expression' => $expression
+            ];
+        });
 
         array_walk_recursive($expression, function (&$value) use (&$fields) {
-            if (str_contains($value, '(')) {
+            if (is_numeric($value)) {
+                if (str_contains((string) $value, '.')) {
+                    $value = floatval($value);
+                } else {
+                    $value = intval($value);
+                }
+                return;
+            }
+
+            if (!array_key_exists($value, $fields)) {
                 $function = str_before($value, '(');
 
                 $fields[$value] = [
@@ -653,17 +671,9 @@ class SqlToMongodbQuery
                             '() '
                         )
                 ];
-                $value          = '$'.$value;
-                return;
             }
 
-            if (is_numeric($value)) {
-                if (str_contains($value, '.')) {
-                    $value = floatval($value);
-                } else {
-                    $value = intval($value);
-                }
-            }
+            $value = '$'.$value;
         });
 
         return [
@@ -675,7 +685,7 @@ class SqlToMongodbQuery
 
     protected function isMathExpression($expr): bool
     {
-        return preg_match('/[+\-*\/]/', $expr) === 1 && !str_contains($expr, '(*)');
+        return preg_match('/[+\-*\/]/', $expr) === 1;
     }
 
     /**

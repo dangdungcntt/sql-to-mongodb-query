@@ -2,11 +2,18 @@
 
 namespace Nddcoder\SqlToMongodbQuery\Lib;
 
+use Nddcoder\SqlToMongodbQuery\Lib\DataStruct\Stack;
+
 class PostfixConverter
 {
-    protected static function isOperator($char): bool
+    public const __CALL__ = '__call__';
+
+    protected static function isOperator($char, $exclude = null): bool
     {
-        return in_array($char, ['+', '-', '*', '/', '%']);
+        if ($exclude == $char) {
+            return false;
+        }
+        return in_array($char, ['+', '-', '*', '/', '%', self::__CALL__]);
     }
 
     protected static function isBracket($char): bool
@@ -16,6 +23,10 @@ class PostfixConverter
 
     protected static function getPriority(string $operator): int
     {
+        if ($operator == self::__CALL__) {
+            return 3;
+        }
+
         if ($operator == "*" || $operator == "/" || $operator == "%") {
             return 2;
         }
@@ -40,68 +51,107 @@ class PostfixConverter
 
     protected static function normalizeTokens(array $tokens): array
     {
-        $stack = [];
+        $stack = new Stack();
 
-        foreach ($tokens as $token) {
+        foreach (array_values($tokens) as $index => $token) {
             if ($token == ')') {
                 $foundOperator = false;
+                $foundOperand  = false;
                 $tmpArray      = [$token];
-                while (!empty($stack)) {
-                    $item       = array_pop($stack);
+                while ($stack->isNotEmpty()) {
+                    $item       = $stack->pop();
                     $tmpArray[] = $item;
                     if ($item == '(') {
                         break;
                     }
-                    if (self::isOperator($item)) {
+                    if (self::isOperator($item, self::__CALL__)) {
                         $foundOperator = true;
+                    } else {
+                        if ($item != self::__CALL__) {
+                            $foundOperand = true;
+                        }
                     }
                 }
 
-                if (!$foundOperator) {
-                    $previousItem = array_pop($stack);
-                    if (self::isOperator($previousItem) || self::isBracket($previousItem)) {
+                if (!$foundOperator || !$foundOperand) {
+                    $previousItem = $stack->top();
+                    if ($previousItem == null || self::isOperator($previousItem,
+                            self::__CALL__) || self::isBracket($previousItem)) {
                         array_shift($tmpArray);
                         array_pop($tmpArray);
-                        $stack[] = $previousItem;
                     } else {
-                        $tmpArray[] = $previousItem;
+                        $tmpArray[] = $stack->pop();
                     }
-                    $tmpArray = join(array_reverse($tmpArray));
-                    $stack[]  = $tmpArray;
+
+                    $joinedToken = join(array_reverse($tmpArray));
+                    if (!str_starts_with($joinedToken, self::__CALL__)) {
+                        $joinedToken = str_replace(self::__CALL__.'(', '(', $joinedToken);
+                    }
+                    $stack->push($joinedToken);
                 } else {
-                    $stack = array_merge($stack, array_reverse($tmpArray));
+                    $stack->pushAll(array_reverse($tmpArray));
                 }
                 continue;
             }
 
-            $stack[] = $token;
+            if (!self::isOperator($token) && !self::isBracket($token)) {
+                $nextToken = $tokens[$index + 1] ?? null;
+                if ($nextToken == '(') {
+                    $stack->push($token);
+                    $stack->push(self::__CALL__);
+                    continue;
+                }
+            }
+
+            $stack->push($token);
         }
 
-        return $stack;
+        $tokens = array_reverse($stack->getData());
+        $stack->clear();
+
+        $skipToIndex = 0;
+
+        foreach (array_values($tokens) as $index => $token) {
+            if ($index < $skipToIndex) {
+                continue;
+            }
+
+            if (str_starts_with($token, self::__CALL__) && $token != self::__CALL__) {
+                $token = str_replace_first(self::__CALL__, $tokens[$index + 1], $token);
+                $stack->push($token);
+                $skipToIndex = $index + 2;
+                continue;
+            }
+
+            $stack->push($token);
+        }
+
+        return array_reverse($stack->getData());
     }
 
     public static function convert($expression): array
     {
         $tokens = self::convertExpressionToListToken($expression);
         $tokens = self::normalizeTokens($tokens);
-        $stack  = [];
+
+        $stack  = new Stack();
         $output = [];
         foreach ($tokens as $token) {
             if (self::isOperator($token)) {
-                while (!empty($stack) && self::getPriority($token) <= self::getPriority($stack[0])) {
-                    $output[] = array_shift($stack);
+                while ($stack->isNotEmpty() && self::getPriority($token) <= self::getPriority($stack->top())) {
+                    $output[] = $stack->pop();
                 }
-                array_unshift($stack, $token);
+                $stack->push($token);
                 continue;
             }
 
             if ($token == '(') {
-                array_unshift($stack, $token);
+                $stack->push($token);
                 continue;
             }
 
             if ($token == ')') {
-                while (($item = array_shift($stack)) != '(') {
+                while (($item = $stack->pop()) != '(') {
                     $output[] = $item;
                 }
                 continue;
@@ -110,6 +160,6 @@ class PostfixConverter
             $output[] = $token;
         }
 
-        return array_merge($output, $stack);
+        return array_merge($output, $stack->getData());
     }
 }
