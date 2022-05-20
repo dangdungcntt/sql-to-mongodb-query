@@ -283,7 +283,7 @@ it('should parse expression in select fields', function () {
 
 it('should parse complex expression in select fields', function () {
     $aggregate = $this->parser->parse("
-        SELECT date, (sum(cost)) / (sum(clicks + impressions) / count(abc + def) + count(*) + max(displays)) * 1000.00 as est_rev, sum(clicks) as total_clicks, sum(impressions) as total_impressions
+        SELECT date, (sum(cost)) / (sum(clicks + impressions + 10.0 + 20) / count(abc + def) + count(*) + max(displays)) * 1000.00 as est_rev, sum(clicks) as total_clicks, sum(impressions) as total_impressions
         FROM  reports
         where  date >= 220516
         group by date
@@ -324,11 +324,31 @@ it('should parse complex expression in select fields', function () {
                 ],
                 '__tmp_expression_'.md5(json_encode([
                     '$sum' => [
-                        '$add' => ['clicks', 'impressions']
+                        '$add' => [
+                            [
+                                '$add' => [
+                                    [
+                                        '$add' => ['clicks', 'impressions']
+                                    ],
+                                    '10.0'
+                                ]
+                            ],
+                            '20'
+                        ]
                     ]
                 ]))                => [
                     '$sum' => [
-                        '$add' => ['clicks', 'impressions']
+                        '$add' => [
+                            [
+                                '$add' => [
+                                    [
+                                        '$add' => ['$clicks', '$impressions']
+                                    ],
+                                    10.0
+                                ]
+                            ],
+                            20
+                        ]
                     ]
                 ]
             ]
@@ -353,7 +373,17 @@ it('should parse complex expression in select fields', function () {
                                                     '$divide' => [
                                                         '$__tmp_expression_'.md5(json_encode([
                                                             '$sum' => [
-                                                                '$add' => ['clicks', 'impressions']
+                                                                '$add' => [
+                                                                    [
+                                                                        '$add' => [
+                                                                            [
+                                                                                '$add' => ['clicks', 'impressions']
+                                                                            ],
+                                                                            '10.0'
+                                                                        ]
+                                                                    ],
+                                                                    '20'
+                                                                ]
                                                             ]
                                                         ])),
                                                         '$count(*)'

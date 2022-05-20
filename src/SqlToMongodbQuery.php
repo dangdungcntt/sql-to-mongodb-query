@@ -643,6 +643,17 @@ class SqlToMongodbQuery
         $fields = [];
 
         $expression = GroupByArithmeticConverter::convert($expression, function ($expr, $expression) use (&$fields) {
+            array_walk_recursive($expression, function (&$value) {
+                if (is_numeric($value)) {
+                    if (str_contains((string) $value, '.')) {
+                        $value = floatval($value);
+                    } else {
+                        $value = intval($value);
+                    }
+                    return;
+                }
+                $value = '$'.$value;
+            });
             $fields[$expr] = [
                 'expr'       => $expr,
                 'function'   => 'custom',
