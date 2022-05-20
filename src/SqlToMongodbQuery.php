@@ -598,7 +598,22 @@ class SqlToMongodbQuery
                 }
 
                 $results[$fieldData['expr']] = match (strtolower($fieldData['function'])) {
-                    'count' => ['$sum' => 1],
+                    'count' => [
+                        '$sum' => $fieldData['field'] == '$*' ? 1 : [
+                            '$cond' => [
+                                [
+                                    '$ne' => [
+                                        [
+                                            '$type' => $fieldData['field'],
+                                        ],
+                                        'missing',
+                                    ],
+                                ],
+                                1,
+                                0,
+                            ],
+                        ]
+                    ],
                     'sum' => [
                         '$sum' => $fieldData['field']
                     ],
