@@ -377,7 +377,9 @@ class SqlToMongodbQuery
             $reverseOperator = true;
         }
 
-        $identifiers = array_values(array_filter($identifiers, fn($string) => $string != $field));
+        if ($this->isInlineFunction($value) && !str_starts_with($value, $field.'(')) {
+            $identifiers = array_values(array_filter($identifiers, fn($string) => $string != $field));
+        }
 
         switch (true) {
             case $this->isStringValue($value):

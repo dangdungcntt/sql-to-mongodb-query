@@ -41,9 +41,8 @@ it('should parse group by', function () {
     expect($aggregate)
         ->collection->toEqual('logs')
         ->hint->toEqual('index_name')
-        ->pipelines->toHaveCount(7);
-
-    expect($aggregate->pipelines[1])
+        ->pipelines->toHaveCount(7)
+        ->and($aggregate->pipelines[1])
         ->toEqual([
             '$group' => [
                 '_id'      => [
@@ -56,9 +55,8 @@ it('should parse group by', function () {
                     '$sum' => '$sum'
                 ],
             ]
-        ]);
-
-    expect($aggregate->pipelines[2])
+        ])
+        ->and($aggregate->pipelines[2])
         ->toEqual([
             '$project' => [
                 'user_id'  => '$_id.user_id',
@@ -66,9 +64,8 @@ it('should parse group by', function () {
                 'sum(sum)' => '$sum(sum)',
                 '_id'      => 0
             ]
-        ]);
-
-    expect($aggregate->pipelines[3])
+        ])
+        ->and($aggregate->pipelines[3])
         ->toEqual([
             '$match' => [
                 'count(*)' => [
@@ -90,9 +87,8 @@ it('should group by id null', function () {
     );
 
     expect($aggregate->pipelines)
-        ->toHaveCount(3);
-
-    expect($aggregate->pipelines[1])
+        ->toHaveCount(3)
+        ->and($aggregate->pipelines[1])
         ->toEqual([
             '$group' => [
                 '_id'      => null,
@@ -114,9 +110,8 @@ it('should parse group by with empty select functions', function () {
     );
 
     expect($aggregate->collection)
-        ->toEqual('logs');
-
-    expect($aggregate->pipelines)
+        ->toEqual('logs')
+        ->and($aggregate->pipelines)
         ->toHaveCount(3);
 });
 
@@ -145,10 +140,10 @@ it('should throw exception for invalid group by function when group by', functio
 it('should parse select functions', function () {
     $aggregate = $this->parser->parse("SELECT avg(displays), max(clicks), min(ctr), sum(views) FROM clicks");
     expect($aggregate->pipelines)
-        ->toHaveCount(3);
-    expect($aggregate->pipelines[0])
-        ->toEqual(['$match' => (object) []]);
-    expect($aggregate->pipelines[1])
+        ->toHaveCount(3)
+        ->and($aggregate->pipelines[0])
+        ->toEqual(['$match' => (object) []])
+        ->and($aggregate->pipelines[1])
         ->toEqual([
             '$group' => [
                 "_id"           => null,
@@ -165,8 +160,8 @@ it('should parse select functions', function () {
                     '$sum' => '$views'
                 ]
             ]
-        ]);
-    expect($aggregate->pipelines[2])
+        ])
+        ->and($aggregate->pipelines[2])
         ->toEqual([
             '$project' => [
                 "avg(displays)" => '$avg(displays)',
@@ -181,27 +176,24 @@ it('should parse select functions', function () {
 it('should group by nested', function () {
     $aggregate = $this->parser->parse("SELECT abc.device.device_info.device_type FROM clicks WHERE abc.device.device_info.device_type != NULL group by abc.device.device_info.device_type");
     expect($aggregate->pipelines)
-        ->toHaveCount(3);
-
-    expect($aggregate->pipelines[0])
+        ->toHaveCount(3)
+        ->and($aggregate->pipelines[0])
         ->toEqual([
             '$match' => [
                 'abc.device.device_info.device_type' => [
                     '$ne' => null
                 ]
             ]
-        ]);
-
-    expect($aggregate->pipelines[1])
+        ])
+        ->and($aggregate->pipelines[1])
         ->toEqual([
             '$group' => [
                 '_id' => [
                     'abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type' => '$abc.device.device_info.device_type'
                 ]
             ]
-        ]);
-
-    expect($aggregate->pipelines[2])
+        ])
+        ->and($aggregate->pipelines[2])
         ->toEqual([
             '$project' => [
                 'abc.device.device_info.device_type' => '$_id.abc'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_info'.SqlToMongodbQuery::SPECIAL_DOT_CHAR.'device_type',
@@ -219,18 +211,16 @@ it('should parse expression in select fields', function () {
     ");
 
     expect($aggregate->pipelines)
-        ->toHaveCount(3);
-
-    expect($aggregate->pipelines[0])
+        ->toHaveCount(3)
+        ->and($aggregate->pipelines[0])
         ->toEqual([
             '$match' => [
                 'date' => [
                     '$gte' => 220516
                 ]
             ]
-        ]);
-
-    expect($aggregate->pipelines[1])
+        ])
+        ->and($aggregate->pipelines[1])
         ->toEqual([
             '$group' => [
                 '_id'              => [
@@ -246,9 +236,8 @@ it('should parse expression in select fields', function () {
                     '$sum' => '$cost'
                 ],
             ]
-        ]);
-
-    expect($aggregate->pipelines[2])
+        ])
+        ->and($aggregate->pipelines[2])
         ->toEqual([
             '$project' => [
                 'date'              => '$_id.date',
@@ -290,18 +279,16 @@ it('should parse complex expression in select fields', function () {
     ");
 
     expect($aggregate->pipelines)
-        ->toHaveCount(3);
-
-    expect($aggregate->pipelines[0])
+        ->toHaveCount(3)
+        ->and($aggregate->pipelines[0])
         ->toEqual([
             '$match' => [
                 'date' => [
                     '$gte' => 220516
                 ]
             ]
-        ]);
-
-    expect($aggregate->pipelines[1])
+        ])
+        ->and($aggregate->pipelines[1])
         ->toEqual([
             '$group' => [
                 '_id'              => [
@@ -319,7 +306,7 @@ it('should parse complex expression in select fields', function () {
                 'count(*)'         => [
                     '$sum' => 1
                 ],
-                'count(abc)'         => [
+                'count(abc)'       => [
                     '$sum' => [
                         '$cond' => [
                             [
@@ -368,9 +355,8 @@ it('should parse complex expression in select fields', function () {
                     ]
                 ]
             ]
-        ]);
-
-    expect($aggregate->pipelines[2])
+        ])
+        ->and($aggregate->pipelines[2])
         ->toEqual([
             '$project' => [
                 'date'              => '$_id.date',
