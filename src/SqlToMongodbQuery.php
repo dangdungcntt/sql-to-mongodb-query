@@ -635,7 +635,7 @@ class SqlToMongodbQuery
                         '$max' => $fieldData['field']
                     ],
                     'custom' => $fieldData['expression'],
-                    default => throw new NotSupportAggregateFunctionException('Not support "'.strtolower($fieldData['function']).'" aggregate fuction')
+                    default => throw new NotSupportAggregateFunctionException('Not support "'.strtolower($fieldData['function']).'" aggregate function')
                 };
             }
         }
@@ -719,7 +719,7 @@ class SqlToMongodbQuery
 
     protected function isMathExpression($expr): bool
     {
-        return preg_match('/[+\-*\/]/', $expr) === 1;
+         return preg_match('/[+\-*\/%]/', $expr) === 1;
     }
 
     /**
