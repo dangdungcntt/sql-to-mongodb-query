@@ -138,16 +138,19 @@ it('should parse group by with empty select fields', function () {
 
 it('should parse query group by special keywords', function () {
     $aggregate = $this->parser->parse(
-        'SELECT * FROM logs group by "key"'
+        'SELECT `key`, * FROM logs group by "key"'
     );
     expect($aggregate->collection)
         ->toEqual('logs')
         ->and($aggregate->pipelines)
-        ->toHaveCount(2)
+        ->toHaveCount(3)
         ->and($aggregate->pipelines[0])
         ->toEqual(['$match' => (object)[]])
         ->and($aggregate->pipelines[1])
-        ->toEqual(['$group' => ['_id' => ['key' => '$key']]]);
+        ->toEqual(['$group' => ['_id' => ['key' => '$key']]])
+        ->and($aggregate->pipelines[2])
+        ->toEqual(['$project' => ['_id' => 0, 'key' => '$_id.key']])
+    ;
 });
 
 it('should throw exception for invalid select field when group by', function () {

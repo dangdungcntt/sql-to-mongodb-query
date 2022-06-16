@@ -382,7 +382,7 @@ class SqlToMongodbQuery
 
         switch (true) {
             case $this->isStringValue($value):
-                $value = substr($value, 1, strlen($value) - 2);
+                $value = $this->getStringValue($value);
                 break;
             case in_array(strtolower($value), ['true', 'false']):
                 $value = strtolower($value) === 'true';
@@ -438,7 +438,7 @@ class SqlToMongodbQuery
                 }
 
                 if ($this->isStringValue($item)) {
-                    $item = substr($item, 1, strlen($item) - 2);
+                    $item = $this->getStringValue($item);
                 } else {
                     if (is_numeric($item)) {
                         settype($item, str_contains($item, '.') ? 'float' : 'int');
@@ -461,7 +461,12 @@ class SqlToMongodbQuery
 
     protected function isStringValue(string $value): bool
     {
-        return str_starts_with($value, '"') || str_starts_with($value, '\'');
+        return str_starts_with($value, '"') || str_starts_with($value, '\'') || str_starts_with($value, '`');
+    }
+
+    protected function getStringValue(string $value): string
+    {
+        return $this->isStringValue($value) ? substr($value, 1, strlen($value) - 2) : $value;
     }
 
     protected function isInlineFunction(string $value): bool
@@ -740,6 +745,7 @@ class SqlToMongodbQuery
             }
             $field = $expression->expr;
             if ($field && $field !== '*') {
+                $field = $this->getStringValue($field);
                 $projection[$field] = 1;
             }
         }
@@ -765,9 +771,7 @@ class SqlToMongodbQuery
                 continue;
             }
 
-            if ($this->isStringValue($field)) {
-                $field = substr($field, 1, strlen($field) - 2);
-            }
+            $field = $this->getStringValue($field);
 
             $groupBy[strtr($field, ['.' => self::SPECIAL_DOT_CHAR])] = "\$$field";
         }
