@@ -760,9 +760,16 @@ class SqlToMongodbQuery
         $groupBy = [];
         foreach ($statement->group ?? [] as $groupKeyword) {
             $field = $groupKeyword->expr->expr;
-            if ($field) {
-                $groupBy[strtr($field, ['.' => self::SPECIAL_DOT_CHAR])] = "\$$field";
+
+            if (!$field) {
+                continue;
             }
+
+            if ($this->isStringValue($field)) {
+                $field = substr($field, 1, strlen($field) - 2);
+            }
+
+            $groupBy[strtr($field, ['.' => self::SPECIAL_DOT_CHAR])] = "\$$field";
         }
         return empty($groupBy) ? null : $groupBy;
     }
