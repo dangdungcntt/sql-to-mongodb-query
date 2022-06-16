@@ -2,6 +2,7 @@
 
 namespace Nddcoder\SqlToMongodbQuery\Tests;
 
+use MongoDB\BSON\UTCDateTime;
 use Nddcoder\SqlToMongodbQuery\Exceptions\InvalidSelectFieldException;
 use Nddcoder\SqlToMongodbQuery\Exceptions\NotSupportAggregateFunctionException;
 use Nddcoder\SqlToMongodbQuery\SqlToMongodbQuery;
@@ -113,6 +114,26 @@ it('should parse group by with empty select functions', function () {
         ->toEqual('logs')
         ->and($aggregate->pipelines)
         ->toHaveCount(3);
+});
+
+it('should parse group by with empty select fields', function () {
+    $aggregate = $this->parser->parse(
+        '
+            SELECT *
+            FROM logs
+            where created_at >= date("2020-12-12")
+            group by user_id
+        '
+    );
+
+    expect($aggregate->collection)
+        ->toEqual('logs')
+        ->and($aggregate->pipelines)
+        ->toHaveCount(2)
+        ->and($aggregate->pipelines[0])
+        ->toEqual(['$match' => ['created_at' => ['$gte' => new UTCDateTime(date_create('2020-12-12'))]]])
+        ->and($aggregate->pipelines[1])
+        ->toEqual(['$group' => ['_id' => ['user_id' => '$user_id']]]);
 });
 
 it('should throw exception for invalid select field when group by', function () {

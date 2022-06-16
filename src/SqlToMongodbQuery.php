@@ -125,17 +125,6 @@ class SqlToMongodbQuery
 
         [$selectFunctions, $additionProjects] = $this->parseSelectFunctions($projectionFunctions);
 
-        $project = [];
-        foreach (array_keys($projection ?? []) as $field) {
-            $project[$field] = '$_id.'.strtr($field, ['.' => self::SPECIAL_DOT_CHAR]);
-        }
-
-        $project = array_merge($project, $additionProjects);
-
-        if (!isset($project['_id']) && !empty($project)) {
-            $project['_id'] = 0;
-        }
-
         $pipelines = [
             [
                 '$match' => empty($filter) ? (object) $filter : $filter
@@ -148,39 +137,49 @@ class SqlToMongodbQuery
                     $selectFunctions
                 )
             ],
-            [
-                '$project' => $project
-            ]
         ];
+
+        $project = [];
+        foreach (array_keys($projection ?? []) as $field) {
+            $project[$field] = '$_id.'.strtr($field, ['.' => self::SPECIAL_DOT_CHAR]);
+        }
+
+        $project = array_merge($project, $additionProjects);
+
+        if (!isset($project['_id']) && !empty($project)) {
+            $project['_id'] = 0;
+        }
+
+        if (!empty($project)) {
+            $pipelines[] = [
+                '$project' => $project
+            ];
+        }
 
         $having = $this->parseHaving($statement);
 
         if (!empty($having)) {
-            $havingStep  = [
+            $pipelines[] = [
                 '$match' => $having
             ];
-            $pipelines[] = $havingStep;
         }
 
         if ($sort) {
-            $sortStep    = [
+            $pipelines[] = [
                 '$sort' => $sort
             ];
-            $pipelines[] = $sortStep;
         }
 
         if ($skip) {
-            $skipStep    = [
+            $pipelines[] = [
                 '$skip' => $skip
             ];
-            $pipelines[] = $skipStep;
         }
 
         if ($limit) {
-            $limitStep   = [
+            $pipelines[] = [
                 '$limit' => $limit
             ];
-            $pipelines[] = $limitStep;
         }
 
         return new Aggregate(
@@ -719,7 +718,7 @@ class SqlToMongodbQuery
 
     protected function isMathExpression($expr): bool
     {
-         return preg_match('/[+\-*\/%]/', $expr) === 1;
+        return preg_match('/[+\-*\/%]/', $expr) === 1;
     }
 
     /**
