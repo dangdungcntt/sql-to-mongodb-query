@@ -24,19 +24,18 @@ use PhpMyAdmin\SqlParser\Statements\SelectStatement;
 class SqlToMongodbQuery
 {
     public const SPECIAL_DOT_CHAR = '__';
-
     public static array $INLINE_FUNCTION_BUILDERS = [];
 
     public function __construct()
     {
         if (!isset(self::$INLINE_FUNCTION_BUILDERS['date'])) {
-            self::addInlineFunctionBuilder('date', fn($str) => new UTCDateTime(date_create($str)));
+            self::addInlineFunctionBuilder('date', fn ($str) => new UTCDateTime(date_create($str)));
         }
         if (!isset(self::$INLINE_FUNCTION_BUILDERS['ObjectId'])) {
-            self::addInlineFunctionBuilder('ObjectId', fn($str) => new ObjectId($str));
+            self::addInlineFunctionBuilder('ObjectId', fn ($str) => new ObjectId($str));
         }
         if (!isset(self::$INLINE_FUNCTION_BUILDERS['Id'])) {
-            self::addInlineFunctionBuilder('Id', fn($str) => new ObjectId($str));
+            self::addInlineFunctionBuilder('Id', fn ($str) => new ObjectId($str));
         }
     }
 
@@ -127,7 +126,7 @@ class SqlToMongodbQuery
 
         $pipelines = [
             [
-                '$match' => empty($filter) ? (object) $filter : $filter
+                '$match' => empty($filter) ? (object)$filter : $filter
             ],
             [
                 '$group' => array_merge(
@@ -323,11 +322,17 @@ class SqlToMongodbQuery
             return array_merge($filter, $subFilter);
         }
 
-        if (count($intersectKeys) == 1 && count($filter) == 1) {
+        if (count($intersectKeys) == 1) {
             $key = array_keys($intersectKeys)[0];
             if (count(array_intersect_key($filter[$key], $subFilter[$key])) == 0) {
-                $filter[$key] = array_merge($filter[$key], $subFilter[$key]);
-                return $filter;
+                if (count($subFilter) == 1) {
+                    $filter[$key] = array_merge($filter[$key], $subFilter[$key]);
+                    return $filter;
+                }
+                if (count($filter) == 1) {
+                    $subFilter[$key] = array_merge($subFilter[$key], $filter[$key]);
+                    return $subFilter;
+                }
             }
         }
 
@@ -377,7 +382,7 @@ class SqlToMongodbQuery
         }
 
         if ($this->isInlineFunction($value) && !str_starts_with($value, $field.'(')) {
-            $identifiers = array_values(array_filter($identifiers, fn($string) => $string != $field));
+            $identifiers = array_values(array_filter($identifiers, fn ($string) => $string != $field));
         }
 
         switch (true) {
@@ -557,7 +562,8 @@ class SqlToMongodbQuery
         }
 
         return [
-            $replaces, $value
+            $replaces,
+            $value
         ];
     }
 
@@ -639,7 +645,9 @@ class SqlToMongodbQuery
                         '$max' => $fieldData['field']
                     ],
                     'custom' => $fieldData['expression'],
-                    default => throw new NotSupportAggregateFunctionException('Not support "'.strtolower($fieldData['function']).'" aggregate function')
+                    default => throw new NotSupportAggregateFunctionException(
+                        'Not support "'.strtolower($fieldData['function']).'" aggregate function'
+                    )
                 };
             }
         }
@@ -672,7 +680,7 @@ class SqlToMongodbQuery
         $expression = GroupByArithmeticConverter::convert($expression, function ($expr, $expression) use (&$fields) {
             array_walk_recursive($expression, function (&$value) {
                 if (is_numeric($value)) {
-                    if (str_contains((string) $value, '.')) {
+                    if (str_contains((string)$value, '.')) {
                         $value = floatval($value);
                     } else {
                         $value = intval($value);
@@ -690,7 +698,7 @@ class SqlToMongodbQuery
 
         array_walk_recursive($expression, function (&$value) use (&$fields) {
             if (is_numeric($value)) {
-                if (str_contains((string) $value, '.')) {
+                if (str_contains((string)$value, '.')) {
                     $value = floatval($value);
                 } else {
                     $value = intval($value);
@@ -745,7 +753,7 @@ class SqlToMongodbQuery
             }
             $field = $expression->expr;
             if ($field && $field !== '*') {
-                $field = $this->getStringValue($field);
+                $field              = $this->getStringValue($field);
                 $projection[$field] = 1;
             }
         }
@@ -766,10 +774,6 @@ class SqlToMongodbQuery
         $groupBy = [];
         foreach ($statement->group ?? [] as $groupKeyword) {
             $field = $groupKeyword->expr->expr;
-
-            if (!$field) {
-                continue;
-            }
 
             $field = $this->getStringValue($field);
 

@@ -15,9 +15,11 @@ beforeEach(function () {
 });
 
 it('should return options', function () {
-    expect($this->parser->parse(
-        'SELECT id, name FROM users use index index_name where id = 1 order by created_at desc limit 20'
-    )->getOptions())
+    expect(
+        $this->parser->parse(
+            'SELECT id, name FROM users use index index_name where id = 1 order by created_at desc limit 20'
+        )->getOptions()
+    )
         ->toEqual(
             [
                 'skip'       => null,
@@ -147,21 +149,29 @@ it('should parse inline function', function () {
         ->toEqual(['_id' => new ObjectId('5d3937af498831003e9f6f2a')])
         ->and($this->parser->parse("SELECT * FROM users WHERE _id in (Id('5d3937af498831003e9f6f2a'))")->filter)
         ->toEqual(['_id' => ['$in' => [new ObjectId('5d3937af498831003e9f6f2a')]]])
-        ->and($this->parser->parse("SELECT * FROM users WHERE _id not in (ObjectId('5d3937af498831003e9f6f2a'))")->filter)
+        ->and(
+            $this->parser->parse("SELECT * FROM users WHERE _id not in (ObjectId('5d3937af498831003e9f6f2a'))")->filter
+        )
         ->toEqual(['_id' => ['$nin' => [new ObjectId('5d3937af498831003e9f6f2a')]]])
         ->and($this->parser->parse("SELECT * FROM users WHERE created_at = date('2020-12-12')")->filter)
         ->toEqual(['created_at' => new UTCDateTime(date_create('2020-12-12'))])
-        ->and($this->parser->parse("SELECT * FROM users WHERE created_at >= date('2020-12-12T10:00:00.000+0700')")->filter)
+        ->and(
+            $this->parser->parse("SELECT * FROM users WHERE created_at >= date('2020-12-12T10:00:00.000+0700')")->filter
+        )
         ->toEqual(['created_at' => ['$gte' => new UTCDateTime(date_create('2020-12-12T10:00:00.000+0700'))]]);
 });
 
 it('should parse multi inline function inside in condition', function () {
     expect(
-        $this->parser->parse("SELECT * FROM users WHERE _id in (Id('5d3937af498831003e9f6f2a'), ObjectId('5d3937af498831003e9f6f2b'), date('2020-12-12'))")->filter)
+        $this->parser->parse(
+            "SELECT * FROM users WHERE _id in (Id('5d3937af498831003e9f6f2a'), ObjectId('5d3937af498831003e9f6f2b'), date('2020-12-12'))"
+        )->filter
+    )
         ->toEqual([
             '_id' => [
                 '$in' => [
-                    new ObjectId('5d3937af498831003e9f6f2a'), new ObjectId('5d3937af498831003e9f6f2b'),
+                    new ObjectId('5d3937af498831003e9f6f2a'),
+                    new ObjectId('5d3937af498831003e9f6f2b'),
                     new UTCDateTime(date_create('2020-12-12'))
                 ]
             ]
@@ -171,35 +181,58 @@ it('should parse multi inline function inside in condition', function () {
 it('should parse complex and condition', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com'")->filter)
         ->toEqual(['name' => 'dung', 'email' => 'dangdungcntt@gmail.com'])
-        ->and($this->parser->parse("SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com' and (phone like '^0983')")->filter)
+        ->and(
+            $this->parser->parse(
+                "SELECT * FROM users WHERE name = 'dung' and email = 'dangdungcntt@gmail.com' and (phone like '^0983')"
+            )->filter
+        )
         ->toEqual(['name' => 'dung', 'email' => 'dangdungcntt@gmail.com', 'phone' => new Regex('^0983', 'i')]);
 });
 
 it('should parse complex or condition', function () {
     expect($this->parser->parse("SELECT * FROM users WHERE name = 'dung' or email = 'dangdungcntt@gmail.com'")->filter)
         ->toEqual(['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com']]])
-        ->and($this->parser->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or age > 12)")->filter)
+        ->and(
+            $this->parser->parse(
+                "SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or age > 12)"
+            )->filter
+        )
         ->toEqual(['$or' => [['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]]]])
-        ->and($this->parser->parse("SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or (age > 12 or age < 6))")->filter)
+        ->and(
+            $this->parser->parse(
+                "SELECT * FROM users WHERE name = 'dung' or (email = 'dangdungcntt@gmail.com' or (age > 12 or age < 6))"
+            )->filter
+        )
         ->toEqual([
             '$or' => [
-                ['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]],
+                ['name' => 'dung'],
+                ['email' => 'dangdungcntt@gmail.com'],
+                ['age' => ['$gt' => 12]],
                 ['age' => ['$lt' => 6]]
             ]
         ])
-        ->and($this->parser->parse("SELECT * FROM users WHERE (name = 'dung' or email = 'dangdungcntt@gmail.com') or (age > 12 or age < 6))")->filter)
+        ->and(
+            $this->parser->parse(
+                "SELECT * FROM users WHERE (name = 'dung' or email = 'dangdungcntt@gmail.com') or (age > 12 or age < 6))"
+            )->filter
+        )
         ->toEqual([
             '$or' => [
-                ['name' => 'dung'], ['email' => 'dangdungcntt@gmail.com'], ['age' => ['$gt' => 12]],
+                ['name' => 'dung'],
+                ['email' => 'dangdungcntt@gmail.com'],
+                ['age' => ['$gt' => 12]],
                 ['age' => ['$lt' => 6]]
             ]
         ]);
 });
 
 it('should parse complex and or condition', function () {
-    expect($this->parser->parse("
+    expect(
+        $this->parser->parse(
+            "
 SELECT * FROM users
-where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-01') or email LIKE '@nddcoder.com$')) or ip in ('10.42.0.1', '192.168.0.1')")->filter
+where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-01') or email LIKE '@nddcoder.com$')) or ip in ('10.42.0.1', '192.168.0.1')"
+        )->filter
     )
         ->toEqual([
             '$or' => [
@@ -214,9 +247,12 @@ where role = 'admin' or (username like 'admin$' and (created_at < date('2020-01-
                 ['ip' => ['$in' => ['10.42.0.1', '192.168.0.1']]]
             ]
         ])
-        ->and($this->parser->parse("
+        ->and(
+            $this->parser->parse(
+                "
 SELECT * FROM users
-where id = 1 and name = 'dung' and email = 'dangdungcntt@gmail.com' and (date('2020-12-14') >= created_at or age > 20) and (date('2020-12-16') < created_at or 22 >= age) or ip not in ('192.168.1.1', '192.168.2.2')")->filter
+where id = 1 and name = 'dung' and email = 'dangdungcntt@gmail.com' and (date('2020-12-14') >= created_at or age > 20) and (date('2020-12-16') < created_at or 22 >= age) or ip not in ('192.168.1.1', '192.168.2.2')"
+            )->filter
         )
         ->toEqual([
             '$or' => [
@@ -242,9 +278,12 @@ where id = 1 and name = 'dung' and email = 'dangdungcntt@gmail.com' and (date('2
                 ['ip' => ['$nin' => ['192.168.1.1', '192.168.2.2']]]
             ]
         ])
-        ->and($this->parser->parse("
+        ->and(
+            $this->parser->parse(
+                "
 SELECT * FROM users
-where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-01-01') or created_at >= date('2021-01-01'))) and ((email LIKE '@nddcoder.com$' or email like '^admin@') and (age < 16 or age > 20)) and active = true")->filter
+where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-01-01') or created_at >= date('2021-01-01'))) and ((email LIKE '@nddcoder.com$' or email like '^admin@') and (age < 16 or age > 20)) and active = true"
+            )->filter
         )
         ->toEqual([
             '$and' => [
@@ -278,7 +317,11 @@ where ((role = 'admin' or username like 'admin$') and (created_at < date('2020-0
 });
 
 it('should parse value contain special char', function () {
-    expect($this->parser->parse("SELECT * FROM clicks WHERE user_agent = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'")->filter)
+    expect(
+        $this->parser->parse(
+            "SELECT * FROM clicks WHERE user_agent = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'"
+        )->filter
+    )
         ->toEqual(['user_agent' => 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'])
         ->and($this->parser->parse("SELECT * FROM users WHERE 'nddcoder (dung nguyen dang)' = name")->filter)
         ->toEqual(['name' => 'nddcoder (dung nguyen dang)']);
@@ -300,7 +343,9 @@ it('should parse null condition', function () {
         ->toEqual([
             'user_agent' => [
                 '$in' => [
-                    null, 1, 'abc'
+                    null,
+                    1,
+                    'abc'
                 ]
             ]
         ]);
@@ -314,7 +359,11 @@ it('should parse nested condition', function () {
 });
 
 it('should parse identifier many times', function () {
-    expect($this->parser->parse("SELECT * FROM clicks WHERE _id in (1, true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a')) and created_at >= date('2020-12-12T10:00:00.000+0700') and modified_at <= date('2020-12-12T10:00:00.000+0700')")->filter)
+    expect(
+        $this->parser->parse(
+            "SELECT * FROM clicks WHERE _id in (1, true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a')) and created_at >= date('2020-12-12T10:00:00.000+0700') and modified_at <= date('2020-12-12T10:00:00.000+0700')"
+        )->filter
+    )
         ->toEqual([
             '_id'         => [
                 '$in' => [
@@ -337,7 +386,9 @@ it('should parse identifier many times', function () {
 });
 
 it('should parse string numeric where in', function () {
-    $filter = $this->parser->parse("SELECT * FROM clicks WHERE id in ('123', '456', 789, '',  'abc', true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a'))")->filter;
+    $filter = $this->parser->parse(
+        "SELECT * FROM clicks WHERE id in ('123', '456', 789, '',  'abc', true, date('2020-12-12T10:00:00.000+0700'), null, '5d3937af498831003e9f6f2a', ObjectId('5d3937af498831003e9f6f2a'), Id('5d3937af498831003e9f6f2a'))"
+    )->filter;
     expect(gettype($filter['id']['$in'][0]) == 'string')
         ->toBeTrue()
         ->and(gettype($filter['id']['$in'][1]) == 'string')
@@ -367,7 +418,11 @@ it('should parse string numeric where in', function () {
 });
 
 it('should merge and condition', function () {
-    expect($this->parser->parse("SELECT * FROM clicks WHERE (id >= 10 or id >= 1 and id < 6) and (count >= 5 and count <= 10)")->filter)
+    expect(
+        $this->parser->parse(
+            "SELECT * FROM clicks WHERE (id >= 10 or id >= 1 and id < 6) and (count >= 5 and count <= 10)"
+        )->filter
+    )
         ->toEqual([
             '$or'   => [
                 [
@@ -389,7 +444,6 @@ it('should merge and condition', function () {
             ]
         ]);
 });
-
 
 it('support where is not', function () {
     expect($this->parser->parse("SELECT * FROM clicks WHERE created_at is not null")->filter)
@@ -428,6 +482,33 @@ it('support where field name equal function name', function () {
         ->toEqual([
             'date' => [
                 '$gte' => new UTCDateTime(date_create('2022-01-01'))
+            ]
+        ]);
+});
+
+it('support merge gte and lte condition', function () {
+    expect(
+        $this->parser->parse(
+            "SELECT * FROM clicks WHERE created_at <= date('2023-01-01') and (status = 1 and created_at >= date('2022-01-01'))"
+        )->filter
+    )
+        ->toEqual([
+            'status'     => 1,
+            'created_at' => [
+                '$gte' => new UTCDateTime(date_create('2022-01-01')),
+                '$lte' => new UTCDateTime(date_create('2023-01-01'))
+            ]
+        ])
+        ->and(
+            $this->parser->parse(
+                "SELECT * FROM clicks WHERE status = 1 and created_at <= date('2023-01-01') and created_at >= date('2022-01-01'))"
+            )->filter
+        )
+        ->toEqual([
+            'status'     => 1,
+            'created_at' => [
+                '$gte' => new UTCDateTime(date_create('2022-01-01')),
+                '$lte' => new UTCDateTime(date_create('2023-01-01'))
             ]
         ]);
 });
