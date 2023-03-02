@@ -2,6 +2,10 @@
 
 All notable changes to `sql-to-mongodb-query` will be documented in this file
 
+## 1.2.0 - 2023-03-02
+
+- Support merge condition on same field.
+
 ## 1.1.3 - 2022-06-16
 
 - Support group by, select field with quote, double quote or backtick : ```SELECT `key` FROM logs group by 'key', "key1"```
