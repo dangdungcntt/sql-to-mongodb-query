@@ -808,7 +808,7 @@ class SqlToMongodbQuery
             return null;
         }
         $hintValue = $statement->index_hints[0]->indexes[0] ?? null;
-        return $hintValue?->column ?? $hintValue;
+        return $hintValue?->column ?? $hintValue?->__toString();
     }
 
     protected function parseWhere(SelectStatement $statement): array
