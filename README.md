@@ -1,7 +1,7 @@
 # sql-to-mongodb-query
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/nddcoder/sql-to-mongodb-query.svg?style=flat-square)](https://packagist.org/packages/nddcoder/sql-to-mongodb-query)
-[![GitHub Tests Action Status](https://img.shields.io/github/workflow/status/dangdungcntt/sql-to-mongodb-query/Tests?label=tests)](https://github.com/dangdungcntt/sql-to-mongodb-query/actions?query=workflow%3Atests+branch%3Amaster)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/dangdungcntt/sql-to-mongodb-query/run-tests.yml?branch=master)](https://github.com/dangdungcntt/sql-to-mongodb-query/actions?query=workflow%3Atests+branch%3Amaster)
 [![Total Downloads](https://img.shields.io/packagist/dt/nddcoder/sql-to-mongodb-query.svg?style=flat-square)](https://packagist.org/packages/nddcoder/sql-to-mongodb-query)
 
 ## Installation
