@@ -2,6 +2,10 @@
 
 All notable changes to `sql-to-mongodb-query` will be documented in this file
 
+## 1.3.0 - 2024-05-17
+
+- Using `phpmyadmin/sql-parser` version `^5.9`
+
 ## 1.2.0 - 2023-03-02
 
 - Support merge condition on same field.
